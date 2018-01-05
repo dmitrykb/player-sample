@@ -1,7 +1,8 @@
-package drift.rvlvr.com.sample.player;
+package com.betelge.rvlvr;
 
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.util.Log;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -19,7 +20,7 @@ public class Player {
 
     int currentFrame = 0;
 
-    private int UPDATE_INTERVAL = 1000;
+    private int UPDATE_INTERVAL = 1000 / 30;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
 
     private OnFrameListener listener;
@@ -35,15 +36,16 @@ public class Player {
     }
 
     public synchronized void play() {
+
         executor.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 currentFrame++;
-                if(currentFrame > data.length) {
+                if(currentFrame >= data.length) {
                     currentFrame = 0;
                 }
                 if(listener != null) {
-                    listener.onFrame(data[currentFrame]);
+                    listener.onFrame(getCurrentFrame());
                 }
             }
         }, 0L, UPDATE_INTERVAL, TimeUnit.MILLISECONDS);

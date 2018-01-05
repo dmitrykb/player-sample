@@ -1,4 +1,4 @@
-package drift.rvlvr.com.sample;
+package com.betelge.rvlvr;
 
 import org.junit.Test;
 
