@@ -37,6 +37,7 @@ public class ViewActivity extends GvrActivity {
 
         //renderer.setProjectionType(DriftRenderer.PROJECTION_TYPE_NOVR);
         //renderer.setNoWrap(true);
+        //renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_STEREO_SIDE_BY_SIDE);
 
         if (gvrView.setAsyncReprojectionEnabled(true)) {
             AndroidCompat.setSustainedPerformanceMode(this, true);

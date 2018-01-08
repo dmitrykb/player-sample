@@ -35,6 +35,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int vertexLoc = 0;
     private int mvpLoc, mvpBlitLoc;
     private int textureUniformLoc, textureUniformBlitLoc;
+    private int mapLoc;
 
     private FloatBuffer vertexBuffer;
     private ShortBuffer indexBuffer;
@@ -159,6 +160,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         mvpBlitLoc = GLES20.glGetUniformLocation(blitProgram, "u_mvp");
         textureUniformLoc = GLES20.glGetUniformLocation(skyBoxProgram, "frame");
         textureUniformBlitLoc = GLES20.glGetUniformLocation(blitProgram, "frame");
+        mapLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_map");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
         String fragmentLog = GLES20.glGetShaderInfoLog(fragmentShader);
@@ -393,6 +395,19 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             //rot = rot % 360;
             GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
         }
+
+        // Map a region of the texture onto this eye
+        float rightEye = eye.getType() == Eye.Type.LEFT || eye.getType() == Eye.Type.MONOCULAR ?
+                0 : 1;
+        if(noWrap)
+            GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
+        else if(stereotype == SIGNAL_TYPE_MONO)
+            GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
+        else if(stereotype == SIGNAL_TYPE_STEREO_SIDE_BY_SIDE)
+            GLES20.glUniform4f(mapLoc, .5f*rightEye, 0, .5f, 1);
+        else if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
+            GLES20.glUniform4f(mapLoc, 0, .5f*rightEye, 1, .5f);
+
 
 
         if(noWrap)
