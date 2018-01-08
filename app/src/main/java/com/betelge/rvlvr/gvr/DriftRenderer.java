@@ -15,7 +15,7 @@ public interface DriftRenderer {
 	 * @param w - input signal horizontal resolution
 	 * @param h - input signal vertical resolution
 	 */
-	void setResolution(int w, int h);
+	//void setResolution(int w, int h);
 
 	/**
 	 	Crop vertical axis of incoming signal prior to projection by aspect ratio
@@ -45,5 +45,5 @@ public interface DriftRenderer {
 	 * Full Screen mode (No Projection)
 	 	@true - we don’t want to wrap the signal into a sphere and just render it as is, @false - wrap a signal into a sphere
 	 */
-	void setNoWrap(boolean b);
+	void setNoWrap(boolean noWrap);
 }
