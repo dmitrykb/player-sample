@@ -36,6 +36,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int mvpLoc, mvpBlitLoc;
     private int textureUniformLoc, textureUniformBlitLoc;
     private int mapLoc;
+    private int angleLoc;
 
     private FloatBuffer vertexBuffer;
     private ShortBuffer indexBuffer;
@@ -161,6 +162,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         textureUniformLoc = GLES20.glGetUniformLocation(skyBoxProgram, "frame");
         textureUniformBlitLoc = GLES20.glGetUniformLocation(blitProgram, "frame");
         mapLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_map");
+        angleLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_angle");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
         String fragmentLog = GLES20.glGetShaderInfoLog(fragmentShader);
@@ -363,7 +365,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void onDrawEye(Eye eye) {
 
-        GLES20.glClearColor(.0f, .0f, 2f, 1f);
+        GLES20.glClearColor(.0f, .0f, 0f, 1f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
@@ -399,14 +401,23 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         // Map a region of the texture onto this eye
         float rightEye = eye.getType() == Eye.Type.LEFT || eye.getType() == Eye.Type.MONOCULAR ?
                 0 : 1;
-        if(noWrap)
-            GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
-        else if(stereotype == SIGNAL_TYPE_MONO)
-            GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
-        else if(stereotype == SIGNAL_TYPE_STEREO_SIDE_BY_SIDE)
-            GLES20.glUniform4f(mapLoc, .5f*rightEye, 0, .5f, 1);
-        else if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
-            GLES20.glUniform4f(mapLoc, 0, .5f*rightEye, 1, .5f);
+        if(!noWrap) {
+            switch (stereotype) {
+                default:
+                case SIGNAL_TYPE_MONO:
+                    GLES20.glUniform4f(mapLoc, 1, 0, 1, 1);
+                    break;
+                case SIGNAL_TYPE_STEREO_SIDE_BY_SIDE:
+                    GLES20.glUniform4f(mapLoc, .5f * rightEye, 0, .5f, 1);
+                    break;
+                case SIGNAL_TYPE_STEREO_OVER_UNDER:
+                    GLES20.glUniform4f(mapLoc, 1, .5f * rightEye, 1, .5f);
+                    break;
+            }
+
+            float angle = projectionAngle / 360f;
+            GLES20.glUniform1f(angleLoc, angle);
+        }
 
 
 
