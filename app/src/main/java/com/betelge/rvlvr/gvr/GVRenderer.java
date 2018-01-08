@@ -3,6 +3,7 @@ package com.betelge.rvlvr.gvr;
 import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
+import android.util.Log;
 
 import com.betelge.rvlvr.R;
 import com.google.vr.sdk.base.Eye;
@@ -45,6 +46,9 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     float[] headView;
     float rot = 0;
+
+    private int videoFrameCount = 0;
+    private long lastFrameTime = 0;
 
     // GLSL based YUV -> RGB converter
     private int fbo;
@@ -331,6 +335,20 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                 convertYUV();
 
                 hasNewFrame = false;
+
+                // Frame counter
+                videoFrameCount++;
+                long newTime = System.currentTimeMillis();
+                if(lastFrameTime == 0) {
+                    lastFrameTime = newTime;
+                }
+
+                if (newTime - lastFrameTime >= 1000) {
+                    Log.d("rvlvr", "Video frame rate: " + videoFrameCount);
+                    videoFrameCount = 0;
+                    lastFrameTime = newTime;
+                }
+
             }
         }
 
