@@ -15,7 +15,7 @@ void main(void) {
 
     vec4 yuy2 = texture2D(tex, cropCoord);
 
-    if(mod(gl_FragCoord.x, 2.) < .5)
+    if(mod(gl_FragCoord.x, 2.) < 1.)
         y = yuy2.r;
     else
         y = yuy2.b;

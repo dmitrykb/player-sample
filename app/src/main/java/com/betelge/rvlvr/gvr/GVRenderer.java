@@ -94,7 +94,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         // The default values
         setSignalType(DriftRenderer.SIGNAL_TYPE_MONO);
-        setSignalAspectRatio(2, 1);
+        setSignalAspectRatio(16, 9);
         setProjectionAngle(360);
         setProjectionType(DriftRenderer.PROJECTION_TYPE_VR);
         setNoWrap(false);

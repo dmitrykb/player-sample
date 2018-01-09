@@ -32,7 +32,7 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
         final GvrView gvrView = findViewById(R.id.gvr_view);
         gvrView.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
 
-        renderer.setSignalAspectRatio(3840, 2160);
+        renderer.setSignalAspectRatio(16, 9);
         gvrView.setRenderer(renderer);
 
         gvrView.setOnTouchListener(this);
