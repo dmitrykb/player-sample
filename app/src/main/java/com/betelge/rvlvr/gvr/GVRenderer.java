@@ -162,7 +162,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         textureUniformLoc = GLES20.glGetUniformLocation(skyBoxProgram, "frame");
         textureUniformBlitLoc = GLES20.glGetUniformLocation(blitProgram, "frame");
         mapLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_map");
-        angleLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_angle");
+        angleLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_angles");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
         String fragmentLog = GLES20.glGetShaderInfoLog(fragmentShader);
@@ -416,7 +416,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             }
 
             float angle = projectionAngle / 360f;
-            GLES20.glUniform1f(angleLoc, angle);
+            // TODO: Set aspect ratio if needed
+            GLES20.glUniform2f(angleLoc, angle, 1f);
         }
 
 
