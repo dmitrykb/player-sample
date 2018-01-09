@@ -28,11 +28,13 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
     }
 
     private void initGVR() {
-        renderer = new GVRenderer(this, 1920, 1080, GVRenderer.COLORSPACE_YUY2);
+        renderer = new GVRenderer(this, 3840, 2160, GVRenderer.COLORSPACE_NV12);
         final GvrView gvrView = findViewById(R.id.gvr_view);
         gvrView.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
 
+        renderer.setSignalAspectRatio(3840, 2160);
         gvrView.setRenderer(renderer);
+
         gvrView.setOnTouchListener(this);
         gvrView.setOnCloseButtonListener(new Runnable() {
             public void run() {
@@ -45,8 +47,8 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
 
         //renderer.setProjectionType(DriftRenderer.PROJECTION_TYPE_NOVR);
         //renderer.setNoWrap(true);
-        //renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_STEREO_SIDE_BY_SIDE);
-        //renderer.setProjectionAngle(180);
+        renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_STEREO_SIDE_BY_SIDE);
+        renderer.setProjectionAngle(180);
 
         if (gvrView.setAsyncReprojectionEnabled(true)) {
             AndroidCompat.setSustainedPerformanceMode(this, true);
