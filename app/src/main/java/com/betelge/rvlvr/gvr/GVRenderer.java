@@ -47,7 +47,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     boolean hasNewFrame = false;
 
     float[] headView;
-    float rot = 0;
+    float rotx, roty = 0;
 
     private int videoFrameCount = 0;
     private long lastFrameTime = 0;
@@ -392,9 +392,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         else {
             eye.getFov().toPerspectiveMatrix(.1f, 1000f, mat, 0);
             Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
-            //Matrix.rotateM(mat, 0, rot, 1, 0, 0);
-            //rot += 1;
-            //rot = rot % 360;
+            Matrix.rotateM(mat, 0, roty, 1, 0, 0);
+            Matrix.rotateM(mat, 0, rotx, 0, 1, 0);
             GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
         }
 
@@ -463,6 +462,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         this.width = w;
         this.height = h;
     }*/
+
+    public void drag(float dx, float dy) {
+        rotx += -.1 * dx;
+        roty += -.1 * dy;
+    }
 
     @Override
     public void setSignalAspectRatio(int w, int h) {
