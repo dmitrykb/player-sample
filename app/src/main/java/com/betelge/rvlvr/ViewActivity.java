@@ -29,11 +29,16 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
 
     private void initGVR() {
         renderer = new GVRenderer(this, 1920, 1080, GVRenderer.COLORSPACE_YUY2);
-        GvrView gvrView = findViewById(R.id.gvr_view);
+        final GvrView gvrView = findViewById(R.id.gvr_view);
         gvrView.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
 
         gvrView.setRenderer(renderer);
         gvrView.setOnTouchListener(this);
+        gvrView.setOnCloseButtonListener(new Runnable() {
+            public void run() {
+                gvrView.setStereoModeEnabled(false);
+            }
+        });
         gvrView.setTransitionViewEnabled(false);
         gvrView.enableCardboardTriggerEmulation();
         //gvrView.setStereoModeEnabled(false);
