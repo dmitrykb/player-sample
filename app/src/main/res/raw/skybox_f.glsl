@@ -13,10 +13,10 @@ vec4 equirectangular(sampler2D sampler, vec3 dir)
     // TODO: Check if this can be done without trigonometric functions
 	vec2 uv;
 	dir = normalize(dir);
-	uv.x = atan( dir.z, dir.x );
-	uv.y = acos( dir.y );
+	uv.x = atan( dir.x, -dir.z ); // [-pi, pi]
+	uv.y = acos( dir.y ); // [0, pi]
 	uv *= 1. / vec2( 2. * 3.14159, 3.14159 );
-	uv += vec2(.25, -.5);
+	uv.y -= .5;
 	uv /= u_angles;
 	uv += vec2(.5);
 
