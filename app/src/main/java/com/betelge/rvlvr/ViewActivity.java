@@ -16,6 +16,9 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
     private Player player;
     private GVRenderer renderer;
 
+    private static String VR_PREF_KEY = "vr_enabled";
+    private boolean backButtonPressed = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -38,14 +41,15 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
         gvrView.setOnTouchListener(this);
         gvrView.setOnCloseButtonListener(new Runnable() {
             public void run() {
-                gvrView.setStereoModeEnabled(false);
+                if(!backButtonPressed)
+                    setVR(false);
+                backButtonPressed = false;
             }
         });
         gvrView.setTransitionViewEnabled(false);
         gvrView.enableCardboardTriggerEmulation();
         //gvrView.setStereoModeEnabled(false);
 
-        //renderer.setProjectionType(DriftRenderer.PROJECTION_TYPE_NOVR);
         //renderer.setNoWrap(true);
         renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_STEREO_SIDE_BY_SIDE);
         renderer.setProjectionAngle(180);
@@ -55,6 +59,16 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
         }
 
         setGvrView(gvrView);
+
+        // Get and apply VR mode. Default to non-VR on first run.
+        setVR(getPreferences(MODE_PRIVATE).getBoolean(VR_PREF_KEY, false));
+    }
+
+    void setVR(boolean vrEnabled) {
+        getGvrView().setStereoModeEnabled(vrEnabled);
+        renderer.setProjectionType( vrEnabled ?
+                DriftRenderer.PROJECTION_TYPE_VR : DriftRenderer.PROJECTION_TYPE_NOVR );
+        findViewById(R.id.vrButton).setVisibility( vrEnabled ? View.GONE : View.VISIBLE );
     }
 
     private void initPlayer() {
@@ -75,5 +89,23 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
                     motionEvent.getY() - motionEvent.getHistoricalY(0));
         }
         return true;
+    }
+
+    @Override
+    public void onPause() {
+        getPreferences(MODE_PRIVATE).edit().putBoolean(VR_PREF_KEY,
+                getGvrView().getStereoModeEnabled()).commit();
+        super.onPause();
+    }
+
+    public void onVRButtonClick(View v) {
+        setVR(true);
+    }
+
+    // Override back button so it doesn't change VR mode before exiting
+    @Override
+    public void onBackPressed() {
+        backButtonPressed = true;
+        super.onBackPressed();
     }
 }
