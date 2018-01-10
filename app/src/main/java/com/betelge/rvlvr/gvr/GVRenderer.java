@@ -380,7 +380,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glClearColor(.0f, .0f, 0f, 1f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
-        if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
+        if(noWrap) {
             GLES20.glUseProgram(blitProgram);
             GLES20.glUniform1i(textureUniformBlitLoc, 0);
         }
@@ -404,8 +404,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         else {
             eye.getFov().toPerspectiveMatrix(.1f, 1000f, mat, 0);
             Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
+
             Matrix.rotateM(mat, 0, roty, 1, 0, 0);
             Matrix.rotateM(mat, 0, rotx, 0, 1, 0);
+            if(noWrap) {
+                Matrix.translateM(mat, 0, 0, 0, -2);
+                Matrix.scaleM(mat, 0, 1, cropH/(float)cropW, 1);
+            }
             GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
         }
 
