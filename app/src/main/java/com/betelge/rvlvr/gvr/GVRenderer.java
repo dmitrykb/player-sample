@@ -33,6 +33,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int skyBoxProgram;
     private int blitProgram;
     private int vertexLoc = 0;
+    private int primitiveType;
     private int mvpLoc, mvpBlitLoc;
     private int textureUniformLoc, textureUniformBlitLoc;
     private int mapLoc;
@@ -177,9 +178,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         //System.out.print(linkLog);
 
 
-        // Sky box mesh
-        float[] vertices = {-1,-1,-1, -1,-1,1, -1,1,-1, -1,1,1, 1,-1,-1, 1,-1,1, 1,1,-1, 1,1,1};
-        short[] elements = {0, 1, 2, 3, 6, 7, 4, 5, 0, 1, 1, 0, 0, 2, 4, 6, 6, 1, 1, 3, 5, 7};
+        // Sky sphere mesh
+        float[] vertices = Sphere.vertices;
+        short[] elements = Sphere.elements;
+        primitiveType = Sphere.PRIMITIVE_TYPE;
 
         ByteBuffer bbFloats = ByteBuffer.allocateDirect(4 * vertices.length);
         bbFloats.order(ByteOrder.nativeOrder());
@@ -433,7 +435,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(noWrap)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
         else
-            GLES20.glDrawElements(GLES20.GL_TRIANGLE_STRIP, indexBuffer.limit(),
+            GLES20.glDrawElements(primitiveType, indexBuffer.limit(),
                     GLES20.GL_UNSIGNED_SHORT, indexBuffer);
     }
 
