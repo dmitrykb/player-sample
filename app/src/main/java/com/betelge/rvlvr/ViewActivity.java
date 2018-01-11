@@ -31,11 +31,12 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
     }
 
     private void initGVR() {
-        renderer = new GVRenderer(this, 3840, 2160, GVRenderer.COLORSPACE_NV12);
+        renderer = new GVRenderer(this);
         final GvrView gvrView = findViewById(R.id.gvr_view);
         gvrView.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
 
         renderer.setSignalAspectRatio(16, 9);
+
         gvrView.setRenderer(renderer);
 
         gvrView.setOnTouchListener(this);
@@ -50,6 +51,8 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
         gvrView.enableCardboardTriggerEmulation();
         //gvrView.setStereoModeEnabled(false);
 
+        //renderer.setResolution(1920, 1080);
+        //renderer.setColorspace(DriftRenderer.COLORSPACE_NV12);
         //renderer.setNoWrap(true);
         renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_STEREO_SIDE_BY_SIDE);
         renderer.setProjectionAngle(180);

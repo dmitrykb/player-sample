@@ -9,13 +9,22 @@ public interface DriftRenderer {
 	int PROJECTION_TYPE_VR = 0;
 	int PROJECTION_TYPE_NOVR = 1;
 
+	int COLORSPACE_NV12 = 0;
+	int COLORSPACE_YUY2 = 1;
+
 
 	/**
 	 *
 	 * @param w - input signal horizontal resolution
 	 * @param h - input signal vertical resolution
 	 */
-	//void setResolution(int w, int h);
+	void setResolution(int w, int h);
+
+	/**
+	 * Sets input format for YUV -> RGB converter
+	 * @param format
+	 */
+	void setColorspace(int format);
 
 	/**
 	 	Crop vertical axis of incoming signal prior to projection by aspect ratio

@@ -65,7 +65,7 @@ public class Player {
         AssetManager assetManager = context.getAssets();
 
         try {
-            InputStream inputStream = assetManager.open("windows.stereo.NV12.3840x2160.@.30.fps.serialized");
+            InputStream inputStream = assetManager.open("windows.stereo.NV12.1920x1080.@.30.fps.serialized");
             ObjectInputStream ois = new ObjectInputStream(inputStream);
             byte[][] loaded = (byte[][]) ois.readObject();
             this.data = new ByteBuffer[loaded.length];

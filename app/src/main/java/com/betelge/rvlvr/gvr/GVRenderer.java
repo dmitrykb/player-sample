@@ -63,42 +63,78 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int yuvTextureUniformYUY2Loc;
     private int yuvTextureUniformNV12Loc;
     private int yuvTextureName;
+    private boolean texturesAreDirty; // Textures need resizing
     private FloatBuffer quadBuffer;
 
     // Input signal
-    private final int width;
-    private final int height;
-    private final int colorspace;
+    private int width;
+    private int height;
+    private int colorspace;
     private int stereotype;
     private int cropW, cropH;
     private int projectionAngle;
 
     // Display settings
     private int projectionType;
-    private boolean noWrap;
+    private boolean noWrap; // Cropping and projection are skipped when noWrap is enabled
+    private int viewWidth;
+    private int viewHeight;
 
-    public final static int COLORSPACE_NV12 = 0;
-    public final static int COLORSPACE_YUY2 = 1;
+    final int MAX_WIDTH = 4096;
+    final int MAX_HEIGHT = 4096;
 
-
-    public GVRenderer(Context context, int width, int height, int colorspace) {
+    public GVRenderer(Context context) {
         this.context = context;
-        this.colorspace = colorspace;
 
         mat = new float[16];
-        rawBuffer = ByteBuffer.allocateDirect(4 * width * height);
+        rawBuffer = ByteBuffer.allocateDirect(4 * MAX_WIDTH * MAX_HEIGHT);
         rawBuffer.order(ByteOrder.nativeOrder());
         rawBuffer.flip();
 
-        this.width = width;
-        this.height = height;
-
         // The default values
+        setResolution(1920, 1080);
+        setColorspace(DriftRenderer.COLORSPACE_NV12);
         setSignalType(DriftRenderer.SIGNAL_TYPE_MONO);
         setSignalAspectRatio(16, 9);
         setProjectionAngle(360);
         setProjectionType(DriftRenderer.PROJECTION_TYPE_VR);
         setNoWrap(false);
+    }
+
+    private void setupTexturesAndFbos() {
+
+        // RGB texture
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
+        int rgbWidth = noWrap ? width : cropW;
+        int rgbHeight = noWrap ? height : cropH;
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, rgbWidth, rgbHeight, 0,
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+
+        // YUV texture
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
+        if(colorspace == COLORSPACE_YUY2)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0,
+                    GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+        else if(colorspace == COLORSPACE_NV12)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 4, height * 2, 0,
+                    GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+
+        // Recreate FBO
+        int[] fbos = {fbo};
+        GLES20.glDeleteFramebuffers(1, fbos, 0);
+        GLES20.glGenFramebuffers(1, fbos, 0);
+        fbo = fbos[0];
+        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, fbos, 0);
+        oldFbo = fbos[0];
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
+        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                GLES20.GL_TEXTURE_2D, textureName, 0);
+        int fbStatus = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
+        assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE);
     }
 
     public void drawFrame(ByteBuffer frame) {
@@ -117,13 +153,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         int[] texLoc = {0};
         GLES20.glGenTextures(1, texLoc, 0);
         textureName = texLoc[0];
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, cropW, cropH, 0, GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE, null);
 
         createYUVConverter();
+
+        setupTexturesAndFbos();
     }
 
     private void createSkybox() {
@@ -202,19 +235,6 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private void createYUVConverter() {
 
-        // Initialize GLSL based YUV converter
-        int[] fbos = {0};
-        GLES20.glGenFramebuffers(1, fbos, 0);
-        fbo = fbos[0];
-        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, fbos, 0);
-        oldFbo = fbos[0];
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
-                GLES20.GL_TEXTURE_2D, textureName, 0);
-        int fbStatus = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
-        assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE);
-
         // Shaders for YUV converter
         yuy2ConverterProgram = GLES20.glCreateProgram();
         nv12ConverterProgram = GLES20.glCreateProgram();
@@ -264,20 +284,6 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         System.out.print(fragmentLog1);
         //System.out.print(linkLog);
 
-        // YUV texture
-        int[] texLoc = {0};
-        GLES20.glGenTextures(1, texLoc, 0);
-        yuvTextureName = texLoc[0];
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
-        if(colorspace == COLORSPACE_YUY2)
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
-                    GLES20.GL_UNSIGNED_BYTE, null);
-        else if(colorspace == COLORSPACE_NV12)
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 4, height * 2, 0, GLES20.GL_RGBA,
-                    GLES20.GL_UNSIGNED_BYTE, null);
-
         // Quad geometry
         float[] vertices = {-1, -1, .5f,  1, -1, .5f,  -1, 1, .5f, 1, 1, .5f};
 
@@ -292,8 +298,9 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     }
 
     @Override
-    public void onSurfaceChanged(int i, int i1) {
-
+    public void onSurfaceChanged(int w, int h) {
+        viewWidth = w;
+        viewHeight = h;
     }
 
     private void convertYUV() {
@@ -303,7 +310,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
 
-        float cropRatio = (float) cropH / (float) height;
+        float cropRatio;
+        if(noWrap)
+            cropRatio = 1;
+        else
+            cropRatio = (float) cropH / (float) height;
 
         if(colorspace == COLORSPACE_NV12) {
             GLES20.glUseProgram(nv12ConverterProgram);
@@ -323,7 +334,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glEnableVertexAttribArray(vertexLoc);
         GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
 
-        GLES20.glViewport(0, 0, cropW, cropH);
+        if(noWrap)
+            GLES20.glViewport(0, 0, width, height);
+        else
+            GLES20.glViewport(0, 0, cropW, cropH);
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
@@ -335,6 +349,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     public void onNewFrame(HeadTransform headTransform) {
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+
+        if(texturesAreDirty) {
+            setupTexturesAndFbos();
+            texturesAreDirty = false;
+        }
 
         // Upload texture to OpenGL when needed
         synchronized (rawBuffer) {
@@ -399,6 +418,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
             Matrix.setIdentityM(mat, 0);
+            float yScale = height / viewHeight * viewWidth / width;
+            Matrix.scaleM(mat, 0, 1, yScale, 1);
             GLES20.glUniformMatrix4fv(mvpBlitLoc, 1, false, mat, 0);
         }
         else {
@@ -409,7 +430,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             Matrix.rotateM(mat, 0, rotx, 0, 1, 0);
             if(noWrap) {
                 Matrix.translateM(mat, 0, 0, 0, -2);
-                Matrix.scaleM(mat, 0, 1, cropH/(float)cropW, 1);
+                Matrix.scaleM(mat, 0, 1, height/(float)width, 1);
             }
             GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
         }
@@ -473,12 +494,6 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         return builder.toString();
     }
 
-    /*@Override
-    public void setResolution(int w, int h) {
-        this.width = w;
-        this.height = h;
-    }*/
-
     public void drag(float dx, float dy) {
         rotx += -.1 * dx;
         roty += -.1 * dy;
@@ -489,9 +504,38 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     }
 
     @Override
+    public void setResolution(int w, int h) {
+        if(width == w && height == h)
+            return;
+
+        width = w;
+        height = h;
+
+        texturesAreDirty = true;
+    }
+
+    @Override
+    public void setColorspace(int format) {
+        if(colorspace == format)
+            return;
+
+        colorspace = format;
+
+        texturesAreDirty = true;
+    }
+
+    @Override
     public void setSignalAspectRatio(int w, int h) {
-        this.cropW = width;
-        this.cropH = width / w * h;
+        int cw = width;
+        int ch = width / w * h;
+
+        if(cropW == cw && cropH == ch)
+            return;
+
+        cropW = cw;
+        cropH = ch;
+
+        texturesAreDirty = true;
     }
 
     @Override
