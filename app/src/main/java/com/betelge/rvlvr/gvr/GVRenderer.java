@@ -235,6 +235,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private void createYUVConverter() {
 
+        // YUV texture
+        int[] texLoc = {0};
+        GLES20.glGenTextures(1, texLoc, 0);
+        yuvTextureName = texLoc[0];
+
         // Shaders for YUV converter
         yuy2ConverterProgram = GLES20.glCreateProgram();
         nv12ConverterProgram = GLES20.glCreateProgram();
