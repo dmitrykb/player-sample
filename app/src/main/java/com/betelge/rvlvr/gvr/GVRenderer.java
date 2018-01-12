@@ -516,6 +516,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         width = w;
         height = h;
 
+        // Update crop resolution maintaining the previous aspect ratio
+        if(cropW != 0 && cropH != 0)
+            setSignalAspectRatio(cropW, cropH);
+
         texturesAreDirty = true;
     }
 
