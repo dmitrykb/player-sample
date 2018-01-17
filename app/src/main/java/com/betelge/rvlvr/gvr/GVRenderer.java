@@ -80,6 +80,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int viewWidth;
     private int viewHeight;
 
+    private float MONOSCOPIC_FOVY = 60;
+
     final int MAX_WIDTH = 4096;
     final int MAX_HEIGHT = 4096;
 
@@ -428,7 +430,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             GLES20.glUniformMatrix4fv(mvpBlitLoc, 1, false, mat, 0);
         }
         else {
-            eye.getFov().toPerspectiveMatrix(.1f, 1000f, mat, 0);
+            if(eye.getType() == Eye.Type.MONOCULAR)
+                Matrix.perspectiveM(mat, 0, MONOSCOPIC_FOVY, viewWidth/(float)viewHeight, .1f, 100f);
+            else
+                eye.getFov().toPerspectiveMatrix(.1f, 100f, mat, 0);
             Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
 
             Matrix.rotateM(mat, 0, roty, 1, 0, 0);
