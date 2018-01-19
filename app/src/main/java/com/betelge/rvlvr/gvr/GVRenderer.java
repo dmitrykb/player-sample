@@ -120,8 +120,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0,
                     GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
         else if(colorspace == COLORSPACE_NV12)
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 4, height * 2, 0,
-                    GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height * 2, 0,
+                    GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, null);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
 
@@ -326,7 +326,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(colorspace == COLORSPACE_NV12) {
             GLES20.glUseProgram(nv12ConverterProgram);
             GLES20.glUniform1i(yuvTextureUniformNV12Loc, 0);
-            GLES20.glUniform1f(cropRatioNV12Loc, cropRatio);
+            GLES20.glUniform2f(cropRatioNV12Loc, cropRatio, width);
         }
         else if(colorspace == COLORSPACE_YUY2) {
             GLES20.glUseProgram(yuy2ConverterProgram);
@@ -371,7 +371,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                     GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
                         GLES20.GL_UNSIGNED_BYTE, rawBuffer);
                 else if(colorspace == COLORSPACE_NV12)
-                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 4, height * 2, 0, GLES20.GL_RGBA,
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height * 2, 0, GLES20.GL_LUMINANCE,
                             GLES20.GL_UNSIGNED_BYTE, rawBuffer);
 
                 convertYUV();
