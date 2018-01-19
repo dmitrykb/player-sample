@@ -394,13 +394,12 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                     GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
                     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, uvTextureName);
 
+                    rawBuffer.position(width*height);
+                    ByteBuffer uvBuffer = rawBuffer.slice();
                     GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA, width / 2, height / 2, 0, GLES20.GL_LUMINANCE_ALPHA,
-                            GLES20.GL_UNSIGNED_BYTE, rawBuffer.position(width*height));
+                            GLES20.GL_UNSIGNED_BYTE, uvBuffer);
 
                     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
-
-
                 }
 
                 convertYUV();
