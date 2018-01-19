@@ -62,7 +62,9 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int cropRatioNV12Loc;
     private int yuvTextureUniformYUY2Loc;
     private int yuvTextureUniformNV12Loc;
+    private int uvTextureUniformNV12Loc;
     private int yuvTextureName;
+    private int uvTextureName;
     private boolean texturesAreDirty; // Textures need resizing
     private FloatBuffer quadBuffer;
 
@@ -120,10 +122,22 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0,
                     GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
         else if(colorspace == COLORSPACE_NV12)
-            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height * 2, 0,
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height, 0,
                     GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, null);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+
+        if(colorspace == COLORSPACE_NV12) {
+            // UV texture
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, uvTextureName);
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA, width / 2, height / 2, 0,
+                    GLES20.GL_LUMINANCE_ALPHA, GLES20.GL_UNSIGNED_BYTE, null);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        }
+
 
         // Recreate FBO
         int[] fbos = {fbo};
@@ -238,9 +252,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private void createYUVConverter() {
 
         // YUV texture
-        int[] texLoc = {0};
-        GLES20.glGenTextures(1, texLoc, 0);
+        int[] texLoc = {0, 0};
+        GLES20.glGenTextures(2, texLoc, 0);
         yuvTextureName = texLoc[0];
+        uvTextureName = texLoc[1];
 
         // Shaders for YUV converter
         yuy2ConverterProgram = GLES20.glCreateProgram();
@@ -277,6 +292,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         yuvTextureUniformYUY2Loc = GLES20.glGetUniformLocation(yuy2ConverterProgram, "tex");
         yuvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "tex");
+        uvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "uvTex");
 
         cropRatioYUY2Loc = GLES20.glGetUniformLocation(yuy2ConverterProgram, "u_cropRatio");
         cropRatioNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "u_cropRatio");
@@ -326,7 +342,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(colorspace == COLORSPACE_NV12) {
             GLES20.glUseProgram(nv12ConverterProgram);
             GLES20.glUniform1i(yuvTextureUniformNV12Loc, 0);
-            GLES20.glUniform2f(cropRatioNV12Loc, cropRatio, width);
+            GLES20.glUniform1i(uvTextureUniformNV12Loc, 1);
+            GLES20.glUniform1f(cropRatioNV12Loc, cropRatio);
         }
         else if(colorspace == COLORSPACE_YUY2) {
             GLES20.glUseProgram(yuy2ConverterProgram);
@@ -370,9 +387,21 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                 if(colorspace == COLORSPACE_YUY2)
                     GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
                         GLES20.GL_UNSIGNED_BYTE, rawBuffer);
-                else if(colorspace == COLORSPACE_NV12)
-                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height * 2, 0, GLES20.GL_LUMINANCE,
+                else if(colorspace == COLORSPACE_NV12) {
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height, 0, GLES20.GL_LUMINANCE,
                             GLES20.GL_UNSIGNED_BYTE, rawBuffer);
+
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, uvTextureName);
+
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA, width / 2, height / 2, 0, GLES20.GL_LUMINANCE_ALPHA,
+                            GLES20.GL_UNSIGNED_BYTE, rawBuffer.position(width*height));
+
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
+
+
+                }
 
                 convertYUV();
 
