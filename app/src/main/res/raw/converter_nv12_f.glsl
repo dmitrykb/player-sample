@@ -12,7 +12,7 @@ void main(void) {
     float r, g, b, y, u, v;
 
     float width = u_cropRatio.y - 1.;
-    vec2 cropCoord = vec2(1., u_cropRatio) * (v_texCoord - vec2(.5)) + vec2(.5);
+    vec2 cropCoord = vec2(1., u_cropRatio.x) * (v_texCoord - vec2(.5)) + vec2(.5);
     vec2 uCoord = vec2(1., .25) * cropCoord + vec2(0., .5);
     uCoord.x = floor(uCoord.x * width / 2.) / width * 2.;
 
