@@ -5,7 +5,7 @@ precision mediump float;
 varying vec3 pos;
 
 uniform vec4 u_map; // (xpos, ypos, xscale, yscale)
-uniform vec2 u_angles; // (hori angle (1=360), vert angle (1=180))
+uniform vec3 u_angles; // (hori angle (1=360), vert angle (1=180), verticalCrop)
 uniform sampler2D frame;
 
 vec4 equirectangular(sampler2D sampler, vec3 dir)
@@ -17,11 +17,16 @@ vec4 equirectangular(sampler2D sampler, vec3 dir)
 	uv.y = acos( dir.y ); // [0, pi]
 	uv *= 1. / vec2( 2. * 3.14159, 3.14159 );
 	uv.y -= .5;
-	uv /= u_angles;
+	uv /= u_angles.xy;
 	uv += vec2(.5);
 
 	if(uv.x < 0. || uv.x > 1. || uv.y < 0. || uv.y > 1.)
 	    discard;
+
+	// Crop
+	uv.y -= .5;
+	uv.y *= u_angles.z;
+	uv.y += .5;
 
 	return texture2D(sampler, u_map.zw * uv + u_map.xy);
 }

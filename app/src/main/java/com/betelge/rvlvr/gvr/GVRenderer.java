@@ -73,7 +73,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int height;
     private int colorspace;
     private int stereotype;
-    private int cropW, cropH;
+    private float aspectCorrection;
     private int projectionAngle;
 
     // Display settings
@@ -109,9 +109,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         // RGB texture
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
-        int rgbWidth = noWrap ? width : cropW;
-        int rgbHeight = noWrap ? height : cropH;
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, rgbWidth, rgbHeight, 0,
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
                 GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
@@ -333,22 +331,14 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
 
-        float cropRatio;
-        if(noWrap)
-            cropRatio = 1;
-        else
-            cropRatio = (float) cropH / (float) height;
-
         if(colorspace == COLORSPACE_NV12) {
             GLES20.glUseProgram(nv12ConverterProgram);
             GLES20.glUniform1i(yuvTextureUniformNV12Loc, 0);
             GLES20.glUniform1i(uvTextureUniformNV12Loc, 1);
-            GLES20.glUniform1f(cropRatioNV12Loc, cropRatio);
         }
         else if(colorspace == COLORSPACE_YUY2) {
             GLES20.glUseProgram(yuy2ConverterProgram);
             GLES20.glUniform1i(yuvTextureUniformYUY2Loc, 0);
-            GLES20.glUniform1f(cropRatioYUY2Loc, cropRatio);
         }
         //else
             // Invalid colorspace
@@ -358,10 +348,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glEnableVertexAttribArray(vertexLoc);
         GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
 
-        if(noWrap)
-            GLES20.glViewport(0, 0, width, height);
-        else
-            GLES20.glViewport(0, 0, cropW, cropH);
+        GLES20.glViewport(0, 0, width, height);
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
@@ -491,7 +478,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             }
 
             float angle = projectionAngle / 360f;
-            GLES20.glUniform2f(angleLoc, angle, 1f);
+            GLES20.glUniform3f(angleLoc, angle, 1f, aspectCorrection);
         }
 
 
@@ -549,10 +536,6 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         width = w;
         height = h;
 
-        // Update crop resolution maintaining the previous aspect ratio
-        if(cropW != 0 && cropH != 0)
-            setSignalAspectRatio(cropW, cropH);
-
         texturesAreDirty = true;
     }
 
@@ -568,16 +551,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     @Override
     public void setSignalAspectRatio(int w, int h) {
-        int cw = width;
-        int ch = width / w * h;
-
-        if(cropW == cw && cropH == ch)
-            return;
-
-        cropW = cw;
-        cropH = ch;
-
-        texturesAreDirty = true;
+        aspectCorrection = h / (float) height * width / (float) w;
     }
 
     @Override

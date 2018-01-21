@@ -4,7 +4,6 @@ precision mediump float;
 
 uniform sampler2D tex;
 uniform sampler2D uvTex;
-uniform float u_cropRatio;
 
 varying vec2 v_texCoord;
 
@@ -12,10 +11,9 @@ void main(void) {
 
     float r, g, b, y, u, v;
 
-    vec2 cropCoord = vec2(1., u_cropRatio) * (v_texCoord - vec2(.5)) + vec2(.5);
 
-    y = texture2D(tex, cropCoord).r;
-    vec2 uv = texture2D(uvTex, cropCoord).ra;
+    y = texture2D(tex, v_texCoord).r;
+    vec2 uv = texture2D(uvTex, v_texCoord).ra;
     u = uv.x;
     v = uv.y;
 
