@@ -1,12 +1,13 @@
 #version 100
 
 attribute vec3 a_vertex;
+attribute vec2 a_uvCoord;
 
-varying vec3 pos;
+varying vec2 uvCoord;
 
 uniform mat4 u_mvp;
 
 void main(void) {
-    pos = a_vertex;
+    uvCoord = a_uvCoord;
     gl_Position = u_mvp * vec4(a_vertex, 1.);
 }
