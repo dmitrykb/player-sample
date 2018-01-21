@@ -549,6 +549,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(width == w && height == h)
             return;
 
+        aspectCorrection *= h / (float) height * width / (float)  w;
+
         width = w;
         height = h;
 
