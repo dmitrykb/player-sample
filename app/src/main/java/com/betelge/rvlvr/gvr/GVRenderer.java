@@ -513,7 +513,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     @Override
     public void onRendererShutdown() {
-
+        int textures[] = {textureName, yuvTextureName, uvTextureName};
+        int fbos[] = {fbo};
+        int programs[] = {blitProgram, skyBoxProgram, nv12ConverterProgram, yuy2ConverterProgram};
+        GLES20.glDeleteTextures(textures.length, textures, 0);
+        GLES20.glDeleteFramebuffers(fbos.length, fbos, 0);
+        for(int prog : programs)
+            GLES20.glDeleteProgram(prog);
     }
 
     private String loadString(int resId) throws IOException {
