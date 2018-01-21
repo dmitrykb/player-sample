@@ -33,6 +33,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int skyBoxProgram;
     private int blitProgram;
     private int vertexLoc = 0;
+    private int uvCoordLoc = 1;
     private int primitiveType;
     private int mvpLoc, mvpBlitLoc;
     private int textureUniformLoc, textureUniformBlitLoc;
@@ -40,6 +41,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int angleLoc;
 
     private FloatBuffer vertexBuffer;
+    private FloatBuffer uvCoordsBuffer;
     private ShortBuffer indexBuffer;
     private float[] mat;
     private int textureName;
@@ -204,6 +206,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glAttachShader(blitProgram, blitFragmentShader);
 
         GLES20.glBindAttribLocation(skyBoxProgram, vertexLoc, "a_vertex");
+        GLES20.glBindAttribLocation(skyBoxProgram, uvCoordLoc, "a_uvCoord");
         GLES20.glBindAttribLocation(blitProgram, vertexLoc, "a_vertex");
 
         GLES20.glLinkProgram(skyBoxProgram);
@@ -228,13 +231,19 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
 
         // Sky sphere mesh
-        float[] vertices = Sphere.vertices;
-        short[] elements = Sphere.elements;
-        primitiveType = Sphere.PRIMITIVE_TYPE;
+        Sphere sphere = new Sphere();
+        float[] vertices = sphere.vertices;
+        float[] uvCoords = sphere.uvCoords;
+        short[] elements = sphere.elements;
+        primitiveType = sphere.primitive_type;
 
         ByteBuffer bbFloats = ByteBuffer.allocateDirect(4 * vertices.length);
         bbFloats.order(ByteOrder.nativeOrder());
         vertexBuffer = bbFloats.asFloatBuffer();
+
+        ByteBuffer bbUVFloats = ByteBuffer.allocateDirect(4 * uvCoords.length);
+        bbUVFloats.order(ByteOrder.nativeOrder());
+        uvCoordsBuffer = bbUVFloats.asFloatBuffer();
 
         ByteBuffer bbShorts = ByteBuffer.allocateDirect(2 * elements.length);
         bbShorts.order(ByteOrder.nativeOrder());
@@ -244,9 +253,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         indexBuffer.flip();
         vertexBuffer.put(vertices);
         vertexBuffer.flip();
+        uvCoordsBuffer.put(uvCoords);
+        uvCoordsBuffer.flip();
 
         GLES20.glEnableVertexAttribArray(vertexLoc);
         GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
+        GLES20.glEnableVertexAttribArray(uvCoordLoc);
+        GLES20.glVertexAttribPointer(uvCoordLoc, 2, GLES20.GL_FLOAT, false, 0, uvCoordsBuffer);
     }
 
     private void createYUVConverter() {
@@ -445,10 +458,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         GLES20.glEnableVertexAttribArray(vertexLoc);
 
-        if(noWrap)
+        if(noWrap) {
             GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
-        else
+        }
+        else {
             GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
+            GLES20.glVertexAttribPointer(uvCoordLoc, 2, GLES20.GL_FLOAT, false, 0, uvCoordsBuffer);
+        }
 
 
         if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
