@@ -89,6 +89,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     final int MAX_WIDTH = 4096;
     final int MAX_HEIGHT = 4096;
 
+    private float noWrapZoom = 1;
+    private float noWrapX = 0;
+    private float noWrapY = 0;
+
     public GVRenderer(Context context) {
         this.context = context;
 
@@ -446,9 +450,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glEnableVertexAttribArray(vertexLoc);
 
         if(noWrap) {
+            GLES20.glDisableVertexAttribArray(uvCoordLoc);
             GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
         }
         else {
+            GLES20.glEnableVertexAttribArray(uvCoordLoc);
             GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
             GLES20.glVertexAttribPointer(uvCoordLoc, 2, GLES20.GL_FLOAT, false, 0, uvCoordsBuffer);
         }
@@ -457,7 +463,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
             Matrix.setIdentityM(mat, 0);
             float yScale = height / viewHeight * viewWidth / width;
-            Matrix.scaleM(mat, 0, 1, yScale, 1);
+            Matrix.scaleM(mat, 0, noWrapZoom, noWrapZoom * yScale, 1);
+            Matrix.translateM(mat, 0, noWrapX, noWrapY, 0);
             GLES20.glUniformMatrix4fv(mvpBlitLoc, 1, false, mat, 0);
         }
         else {
@@ -542,12 +549,36 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     }
 
     public void drag(float dx, float dy) {
-        rotx += -.1 * dx;
-        roty += -.1 * dy;
+        if(noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+            noWrapX += .0015 * dx / noWrapZoom;
+            noWrapY -= .0015 * dy / noWrapZoom;
 
-        rotx %= 360;
-        roty = Math.max(roty, -90);
-        roty = Math.min(roty, 90);
+            float L = 1f;
+            if(noWrapX < -L)
+                noWrapX = -L;
+            else if(noWrapX > L)
+                noWrapX = L;
+            if(noWrapY < -L)
+                noWrapY = -L;
+            else if(noWrapY > L)
+                noWrapY = L;
+        }
+        else {
+            rotx += -.1 * dx;
+            roty += -.1 * dy;
+
+            rotx %= 360;
+            roty = Math.max(roty, -90);
+            roty = Math.min(roty, 90);
+        }
+    }
+
+    public void doubleTap() {
+        if(noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+            noWrapZoom *= 2;
+            if(noWrapZoom < 1 || noWrapZoom > 64)
+                noWrapZoom = 1;
+        }
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.betelge.rvlvr;
 
 import android.os.Bundle;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -11,7 +12,7 @@ import com.google.vr.sdk.base.GvrActivity;
 import com.google.vr.sdk.base.GvrView;
 import java.nio.ByteBuffer;
 
-public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener {
+public class ViewActivity extends GvrActivity implements View.OnTouchListener {
 
     private Player player;
     private GVRenderer renderer;
@@ -19,9 +20,20 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
     private static String VR_PREF_KEY = "vr_enabled";
     private boolean backButtonPressed = false;
 
+    private GestureDetector gestureDetector;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        gestureDetector =
+                new GestureDetector(this, new GestureDetector.SimpleOnGestureListener(){
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        renderer.doubleTap();
+                        return true;
+                    }
+                });
 
         setContentView(R.layout.activity_viewer);
 
@@ -86,12 +98,17 @@ public class ViewActivity extends GvrActivity implements GvrView.OnTouchListener
 
     @Override
     public boolean onTouch(View view, MotionEvent motionEvent) {
+        if(gestureDetector.onTouchEvent(motionEvent))
+            return true;
+
         if(motionEvent.getAction() == MotionEvent.ACTION_MOVE
                 && motionEvent.getHistorySize() >= 1) {
             renderer.drag(motionEvent.getX() - motionEvent.getHistoricalX(0),
                     motionEvent.getY() - motionEvent.getHistoricalY(0));
+            return true;
         }
-        return true;
+
+        return false;
     }
 
     @Override
