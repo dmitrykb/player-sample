@@ -564,8 +564,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                 noWrapY = L;
         }
         else {
-            rotx += -.1 * dx;
-            roty += -.1 * dy;
+            float speed = -.1f;
+
+            if(projectionType == PROJECTION_TYPE_NOVR)
+                speed *= MONOSCOPIC_FOVY / 60f;
+
+            rotx += speed * dx;
+            roty += speed * dy;
 
             rotx %= 360;
             roty = Math.max(roty, -90);
@@ -579,6 +584,15 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             if(noWrapZoom < 1 || noWrapZoom > 64)
                 noWrapZoom = 1;
         }
+        else if(projectionType == PROJECTION_TYPE_NOVR) {
+            MONOSCOPIC_FOVY *= .5f;
+            if(MONOSCOPIC_FOVY < 3f)
+                MONOSCOPIC_FOVY = 60f;
+        }
+    }
+
+    public void longPress() {
+        setNoWrap(!noWrap);
     }
 
     @Override

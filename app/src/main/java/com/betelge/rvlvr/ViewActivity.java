@@ -33,6 +33,10 @@ public class ViewActivity extends GvrActivity implements View.OnTouchListener {
                         renderer.doubleTap();
                         return true;
                     }
+                    @Override
+                    public void onLongPress(MotionEvent e) {
+                        renderer.longPress();
+                    }
                 });
 
         setContentView(R.layout.activity_viewer);
