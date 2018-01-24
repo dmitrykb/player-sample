@@ -11,11 +11,12 @@ uniform vec2 u_angles; // (hori angle (1=360), vert angle (1=180) or verticalCro
 uniform mat4 u_mvp;
 
 void main(void) {
-    uvCoord = a_uvCoord - vec2(.5);
-    uvCoord *= u_angles.xy; // Stereo/mono projection and crop
-    uvCoord += vec2(.5);
+    vec2 uv = a_uvCoord - vec2(.5);
+    uv *= u_angles.xy; // Stereo/mono projection and crop
+    uv += vec2(.5);
 
-	uvCoord = u_map.zw * uvCoord + u_map.xy;
+	uv = u_map.zw * uv + u_map.xy;
+	uvCoord = uv;
 
     pos = a_vertex;
     gl_Position = u_mvp * vec4(a_vertex, 1.);
