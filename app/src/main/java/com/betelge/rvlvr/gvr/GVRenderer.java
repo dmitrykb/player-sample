@@ -500,7 +500,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                     break;
             }
 
-            float angle = projectionAngle / 360f;
+            float angle = 360f / projectionAngle;
             GLES20.glUniform3f(angleLoc, angle, 1f, aspectCorrection);
         }
 
