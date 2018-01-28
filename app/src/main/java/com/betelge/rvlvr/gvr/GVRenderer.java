@@ -549,11 +549,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     }
 
     public void drag(float dx, float dy) {
-        if(noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+        if(noWrap && projectionType == PROJECTION_TYPE_NOVR && noWrapZoom != 1f) {
             noWrapX += .0015 * dx / noWrapZoom;
             noWrapY -= .0015 * dy / noWrapZoom;
 
-            float L = 1f;
+            float L = viewWidth / (float) width;
             if(noWrapX < -L)
                 noWrapX = -L;
             else if(noWrapX > L)
@@ -563,7 +563,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             else if(noWrapY > L)
                 noWrapY = L;
         }
-        else {
+        else if (!noWrap) {
             float speed = -.1f;
 
             if(projectionType == PROJECTION_TYPE_NOVR)
@@ -580,9 +580,14 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     public void doubleTap() {
         if(noWrap && projectionType == PROJECTION_TYPE_NOVR) {
-            noWrapZoom *= 2;
-            if(noWrapZoom < 1 || noWrapZoom > 64)
-                noWrapZoom = 1;
+            if(noWrapZoom != 1f) {
+                noWrapZoom = 1f;
+                noWrapX = 0;
+                noWrapY = 0;
+            }
+            else {
+                noWrapZoom = height / (float) viewHeight;
+            }
         }
         /*else if(projectionType == PROJECTION_TYPE_NOVR) {
             MONOSCOPIC_FOVY *= .5f;
