@@ -584,15 +584,15 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             if(noWrapZoom < 1 || noWrapZoom > 64)
                 noWrapZoom = 1;
         }
-        else if(projectionType == PROJECTION_TYPE_NOVR) {
+        /*else if(projectionType == PROJECTION_TYPE_NOVR) {
             MONOSCOPIC_FOVY *= .5f;
             if(MONOSCOPIC_FOVY < 3f)
                 MONOSCOPIC_FOVY = 60f;
-        }
+        }*/
     }
 
     public void longPress() {
-        setNoWrap(!noWrap);
+        /*setNoWrap(!noWrap);*/
     }
 
     @Override
