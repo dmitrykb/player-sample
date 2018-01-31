@@ -1,9 +1,13 @@
 package com.betelge.rvlvr.gvr;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
+import android.os.Environment;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.betelge.rvlvr.R;
 import com.google.vr.sdk.base.Eye;
@@ -12,6 +16,9 @@ import com.google.vr.sdk.base.HeadTransform;
 import com.google.vr.sdk.base.Viewport;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -47,7 +54,9 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int textureName;
 
     ByteBuffer rawBuffer;
+    ByteBuffer debugBuffer;
     boolean hasNewFrame = false;
+    boolean dumpFrame = false;
 
     float[] headView;
     float rotx, roty = 0;
@@ -100,6 +109,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         rawBuffer = ByteBuffer.allocateDirect(4 * MAX_WIDTH * MAX_HEIGHT);
         rawBuffer.order(ByteOrder.nativeOrder());
         rawBuffer.flip();
+
+        // Used for dumping frames to file
+        debugBuffer = ByteBuffer.allocateDirect(4*MAX_WIDTH * MAX_HEIGHT);
+        debugBuffer.order(ByteOrder.nativeOrder());
 
         // The default values
         setResolution(1920, 1080);
@@ -370,6 +383,17 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 
+        // Dumps the currently bound FBO to file
+        if(dumpFrame) {
+            dumpFrame = false;
+
+            try {
+                dumpFrameToFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
     }
 
@@ -598,6 +622,59 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     public void longPress() {
         /*setNoWrap(!noWrap);*/
+
+        if(noWrap) {
+            Toast.makeText(context, "Dumping frame...", Toast.LENGTH_SHORT).show();
+            dumpFrame = true;
+        }
+    }
+
+    public void dumpFrameToFile() throws IOException {
+        Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, debugBuffer);
+        int r = debugBuffer.remaining();
+        bmp.copyPixelsFromBuffer(debugBuffer);
+        debugBuffer.clear();
+        debugBuffer.rewind();
+
+        /*Bitmap yuvBmp = Bitmap.createBitmap(width, height/2*3, Bitmap.Config.ARGB_8888);
+
+        rawBuffer.rewind();
+        for(int i = 0; i < width * height/2*3; i++) {
+            byte b = rawBuffer.get();
+            debugBuffer.put((byte)255);
+            debugBuffer.put(b);
+            debugBuffer.put(b);
+            debugBuffer.put(b);
+        }
+        rawBuffer.rewind();
+        debugBuffer.rewind();
+        yuvBmp.copyPixelsFromBuffer(debugBuffer);*/
+
+        int i = 0;
+        File file, yuvFile;
+        String filename, yuvFilename;
+        do {
+            filename = "frame" + i + ".png";
+            yuvFilename = "frame_yuv" + i + ".png";
+            file = new File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), filename);
+            yuvFile = new File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), yuvFilename);
+
+            i++;
+        } while(file.exists() || yuvFile.exists());
+        file.createNewFile();
+        //yuvFile.createNewFile();
+        FileOutputStream out = new FileOutputStream(file);
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+        out.close();
+
+        /*out = new FileOutputStream(yuvFile);
+        yuvBmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+        out.close();*/
+
+        debugBuffer.clear();
+        bmp.recycle();
+        //yuvBmp.recycle();
     }
 
     @Override
