@@ -5,6 +5,7 @@ attribute vec2 a_uvCoord;
 
 varying vec2 uvCoord;
 varying vec3 pos;
+varying vec2 preMapUV;
 
 uniform vec4 u_map; // (xpos, ypos, xscale, yscale)
 uniform vec2 u_angles; // (hori angle (1=360), vert angle (1=180) or verticalCrop)
@@ -14,6 +15,8 @@ void main(void) {
     vec2 uv = a_uvCoord - vec2(.5);
     uv *= u_angles.xy; // Stereo/mono projection and crop
     uv += vec2(.5);
+
+    preMapUV = uv;
 
 	uv = u_map.zw * uv + u_map.xy;
 	uvCoord = uv;
