@@ -2,7 +2,6 @@ package com.betelge.rvlvr.gvr;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.os.Environment;
@@ -17,7 +16,6 @@ import com.google.vr.sdk.base.Viewport;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,6 +57,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     boolean dumpFrame = false;
 
     float[] headView;
+    float[] forwardVector = {0,0,0};
     float rotx, roty = 0;
 
     private int videoFrameCount = 0;
@@ -400,6 +399,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void onNewFrame(HeadTransform headTransform) {
 
+        headTransform.getForwardVector(forwardVector, 0);
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 
         if(texturesAreDirty) {
@@ -496,10 +497,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                 Matrix.perspectiveM(mat, 0, MONOSCOPIC_FOVY, viewWidth/(float)viewHeight, .1f, 100f);
             else
                 eye.getFov().toPerspectiveMatrix(.1f, 100f, mat, 0);
-            Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
 
             Matrix.rotateM(mat, 0, roty, 1, 0, 0);
+            Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
             Matrix.rotateM(mat, 0, rotx, 0, 1, 0);
+
             if(noWrap) {
                 Matrix.translateM(mat, 0, 0, 0, -2);
                 Matrix.scaleM(mat, 0, 1, height/(float)width, 1);
@@ -613,19 +615,18 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                 noWrapZoom = height / (float) viewHeight;
             }
         }
-        /*else if(projectionType == PROJECTION_TYPE_NOVR) {
-            MONOSCOPIC_FOVY *= .5f;
-            if(MONOSCOPIC_FOVY < 3f)
-                MONOSCOPIC_FOVY = 60f;
-        }*/
     }
 
     public void longPress() {
-        /*setNoWrap(!noWrap);*/
 
         if(noWrap) {
             Toast.makeText(context, "Dumping frame...", Toast.LENGTH_SHORT).show();
             dumpFrame = true;
+        }
+        else {
+            rotx = (float) (180 / Math.PI * Math.atan2(forwardVector[0], forwardVector[2])) - 180;
+            roty = 0;
+            Toast.makeText(context, "Drift realigned", Toast.LENGTH_SHORT).show();
         }
     }
 
