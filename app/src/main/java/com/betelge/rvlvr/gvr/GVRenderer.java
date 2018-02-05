@@ -399,6 +399,9 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void onNewFrame(HeadTransform headTransform) {
 
+        if(projectionType == PROJECTION_TYPE_VR)
+            roty = 0;
+
         headTransform.getForwardVector(forwardVector, 0);
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
@@ -589,11 +592,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             else if(noWrapY > L)
                 noWrapY = L;
         }
-        else if (!noWrap) {
-            float speed = -.1f;
-
-            if(projectionType == PROJECTION_TYPE_NOVR)
-                speed *= MONOSCOPIC_FOVY / 60f;
+        else if (!noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+            float speed = -.1f * MONOSCOPIC_FOVY / 60f;
 
             rotx += speed * dx;
             roty += speed * dy;
