@@ -556,6 +556,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glDeleteFramebuffers(fbos.length, fbos, 0);
         for(int prog : programs)
             GLES20.glDeleteProgram(prog);
+        rawBuffer = null; // Something keeps a reference to this renderer past onStop() so we have
+        debugBuffer = null; // to stop referencing these native buffers so GC can free them
     }
 
     private String loadString(int resId) throws IOException {
