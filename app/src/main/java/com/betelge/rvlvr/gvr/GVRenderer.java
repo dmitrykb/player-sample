@@ -92,7 +92,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int viewWidth;
     private int viewHeight;
 
-    private float MONOSCOPIC_FOVY = 60;
+    private float MONOSCOPIC_FOVY = 70;
 
     final int MAX_WIDTH = 4096;
     final int MAX_HEIGHT = 4096;
