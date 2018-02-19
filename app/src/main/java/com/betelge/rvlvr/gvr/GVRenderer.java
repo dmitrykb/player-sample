@@ -531,7 +531,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
             float angle = 360f / projectionAngle;
             if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
-                GLES20.glUniform2f(angleLoc, angle*aspectCorrection, 1f);
+                GLES20.glUniform2f(angleLoc, angle/aspectCorrection, 1f);
             else
                 GLES20.glUniform2f(angleLoc, angle, aspectCorrection);
         }
