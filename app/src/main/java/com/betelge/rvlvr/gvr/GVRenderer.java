@@ -519,17 +519,17 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             switch (stereotype) {
                 default:
                 case SIGNAL_TYPE_MONO:
-                    GLES20.glUniform4f(mapLoc, 1, 0, 1, 1);
+                    GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
                     break;
                 case SIGNAL_TYPE_STEREO_SIDE_BY_SIDE:
                     GLES20.glUniform4f(mapLoc, .5f * rightEye, 0, .5f, 1);
                     break;
                 case SIGNAL_TYPE_STEREO_OVER_UNDER:
-                    GLES20.glUniform4f(mapLoc, 1, .5f * rightEye, 1, .5f);
+                    GLES20.glUniform4f(mapLoc, 0f, .5f * rightEye, 1f, .5f);
                     break;
             }
 
-            float angle = 360f / projectionAngle;
+            float angle = 359f / projectionAngle;
             if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
                 GLES20.glUniform2f(angleLoc, angle/aspectCorrection, 1f);
             else
