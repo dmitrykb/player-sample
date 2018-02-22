@@ -44,6 +44,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int textureUniformLoc, textureUniformBlitLoc;
     private int mapLoc;
     private int angleLoc;
+    private int cropNV12Loc;
 
     private FloatBuffer vertexBuffer;
     private FloatBuffer uvCoordsBuffer;
@@ -68,8 +69,6 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int oldFbo;
     private int yuy2ConverterProgram;
     private int nv12ConverterProgram;
-    private int cropRatioYUY2Loc;
-    private int cropRatioNV12Loc;
     private int yuvTextureUniformYUY2Loc;
     private int yuvTextureUniformNV12Loc;
     private int uvTextureUniformNV12Loc;
@@ -94,6 +93,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private float MONOSCOPIC_FOVY = 70;
 
+    private int rgbWidth;
+    private int rgbHeight;
     final int MAX_WIDTH = 4096;
     final int MAX_HEIGHT = 4096;
 
@@ -125,9 +126,22 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private void setupTexturesAndFbos() {
 
+        if(noWrap) {
+            rgbWidth = width;
+            rgbHeight = height;
+        }
+        else if(aspectCorrection > 1.) {
+            rgbWidth = (int) (width / aspectCorrection);
+            rgbHeight = height;
+        }
+        else {
+            rgbWidth = width;
+            rgbHeight = (int) (height * aspectCorrection);
+        }
+
         // RGB texture
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0,
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, rgbWidth, rgbHeight, 0,
                 GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
@@ -321,8 +335,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         yuvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "tex");
         uvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "uvTex");
 
-        cropRatioYUY2Loc = GLES20.glGetUniformLocation(yuy2ConverterProgram, "u_cropRatio");
-        cropRatioNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "u_cropRatio");
+        cropNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "u_crop");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
         String fragmentLog = GLES20.glGetShaderInfoLog(yuy2FragmentShader);
@@ -372,12 +385,13 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         //else
             // Invalid colorspace
 
+        GLES20.glUniform2f(cropNV12Loc, rgbWidth / (float) width, rgbHeight / (float) height);
 
 
         GLES20.glEnableVertexAttribArray(vertexLoc);
         GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
 
-        GLES20.glViewport(0, 0, width, height);
+        GLES20.glViewport(0, 0, rgbWidth, rgbHeight);
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
@@ -403,6 +417,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             roty = 0;
 
         headTransform.getForwardVector(forwardVector, 0);
+
+        GLES20.glViewport(0, 0, viewWidth, viewHeight);
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 
@@ -529,11 +545,12 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
                     break;
             }
 
-            float angle = 359f / projectionAngle;
-            if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
+            float angle = 360f / projectionAngle;
+            /*if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
                 GLES20.glUniform2f(angleLoc, angle/aspectCorrection, 1f);
             else
-                GLES20.glUniform2f(angleLoc, angle, aspectCorrection);
+                GLES20.glUniform2f(angleLoc, angle, aspectCorrection);*/
+            GLES20.glUniform2f(angleLoc, angle, 1f);
         }
 
 
@@ -709,6 +726,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void setSignalAspectRatio(int w, int h) {
         aspectCorrection = h / (float) height * width / (float) w;
+
+        texturesAreDirty = true;
     }
 
     @Override
@@ -729,5 +748,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void setNoWrap(boolean noWrap) {
         this.noWrap = noWrap;
+
+        texturesAreDirty = true;
     }
 }
