@@ -6,6 +6,7 @@ attribute vec2 a_uvCoord;
 varying vec2 uvCoord;
 varying vec3 pos;
 varying vec2 preMapUV;
+varying float hangle;
 
 uniform vec4 u_map; // (xpos, ypos, xscale, yscale)
 uniform vec2 u_angles; // (hori angle (1=360), vert angle (1=180) or verticalCrop)
@@ -17,6 +18,7 @@ void main(void) {
     uv += vec2(.5);
 
     preMapUV = uv;
+    hangle = u_angles.x;
 
 	uv = u_map.zw * uv + u_map.xy;
 	uvCoord = uv;

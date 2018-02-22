@@ -126,7 +126,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private void setupTexturesAndFbos() {
 
-        if(noWrap) {
+        if(noWrap /*set this to false to dump post-crop frame*/) {
             rgbWidth = width;
             rgbHeight = height;
         }
