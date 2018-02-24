@@ -87,6 +87,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     private int widthNextFrame;
     private int heightNextFrame;
+    private int colorspaceNextFrame;
     private int stereotypeNextFrame;
     private float aspectCorrectionNextFrame;
     private int projectionAngleNextFrame;
@@ -427,6 +428,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         noWrap = noWrapNextFrame;
         width = widthNextFrame;
         height = heightNextFrame;
+        colorspace = colorspaceNextFrame;
         aspectCorrection = aspectCorrectionNextFrame;
         stereotype = stereotypeNextFrame;
         projectionAngle = projectionAngleNextFrame;
@@ -738,7 +740,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(colorspace == format)
             return;
 
-        colorspace = format;
+        colorspaceNextFrame = format;
 
         texturesAreDirty = true;
     }
