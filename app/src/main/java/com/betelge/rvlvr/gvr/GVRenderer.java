@@ -87,6 +87,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     // Display settings
     private int projectionType;
+    private boolean noWrapNextFrame;
     private boolean noWrap; // Cropping and projection are skipped when noWrap is enabled
     private int viewWidth;
     private int viewHeight;
@@ -180,7 +181,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
                 GLES20.GL_TEXTURE_2D, textureName, 0);
         int fbStatus = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
-        assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE);
+        //assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE); Android ignores asserts
+
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
+        hasNewFrame = true; // Force new convert to avoid flicker
     }
 
     public void drawFrame(ByteBuffer frame) {
@@ -413,12 +417,12 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void onNewFrame(HeadTransform headTransform) {
 
+        noWrap = noWrapNextFrame;
+
         if(projectionType == PROJECTION_TYPE_VR)
             roty = 0;
 
         headTransform.getForwardVector(forwardVector, 0);
-
-        GLES20.glViewport(0, 0, viewWidth, viewHeight);
 
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 
@@ -474,6 +478,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
         else
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
+
+        GLES20.glViewport(0, 0, viewWidth, viewHeight);
     }
 
     @Override
@@ -747,7 +753,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     @Override
     public void setNoWrap(boolean noWrap) {
-        this.noWrap = noWrap;
+        this.noWrapNextFrame = noWrap;
 
         texturesAreDirty = true;
     }
