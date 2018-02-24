@@ -448,6 +448,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         synchronized (rawBuffer) {
             if(hasNewFrame) {
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
+                rawBuffer.rewind();
 
                 if(colorspace == COLORSPACE_YUY2)
                     GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
