@@ -85,7 +85,14 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private float aspectCorrection;
     private int projectionAngle;
 
+    private int widthNextFrame;
+    private int heightNextFrame;
+    private int stereotypeNextFrame;
+    private float aspectCorrectionNextFrame;
+    private int projectionAngleNextFrame;
+
     // Display settings
+    private int projectionTypeNextFrame;
     private int projectionType;
     private boolean noWrapNextFrame;
     private boolean noWrap; // Cropping and projection are skipped when noWrap is enabled
@@ -418,6 +425,12 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     public void onNewFrame(HeadTransform headTransform) {
 
         noWrap = noWrapNextFrame;
+        width = widthNextFrame;
+        height = heightNextFrame;
+        aspectCorrection = aspectCorrectionNextFrame;
+        stereotype = stereotypeNextFrame;
+        projectionAngle = projectionAngleNextFrame;
+        projectionType = projectionTypeNextFrame;
 
         if(projectionType == PROJECTION_TYPE_VR)
             roty = 0;
@@ -711,10 +724,10 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         if(width == w && height == h)
             return;
 
-        aspectCorrection *= h / (float) height * width / (float)  w;
+        aspectCorrectionNextFrame *= h / (float) heightNextFrame * widthNextFrame / (float)  w;
 
-        width = w;
-        height = h;
+        widthNextFrame = w;
+        heightNextFrame = h;
 
         texturesAreDirty = true;
     }
@@ -731,24 +744,24 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
     @Override
     public void setSignalAspectRatio(int w, int h) {
-        aspectCorrection = h / (float) height * width / (float) w;
+        aspectCorrectionNextFrame = h / (float) heightNextFrame * widthNextFrame / (float) w;
 
         texturesAreDirty = true;
     }
 
     @Override
     public void setSignalType(int stereotype) {
-        this.stereotype = stereotype;
+        this.stereotypeNextFrame = stereotype;
     }
 
     @Override
     public void setProjectionAngle(int projectionAngle) {
-        this.projectionAngle = projectionAngle;
+        this.projectionAngleNextFrame = projectionAngle;
     }
 
     @Override
     public void setProjectionType(int projectionType) {
-        this.projectionType = projectionType;
+        this.projectionTypeNextFrame = projectionType;
     }
 
     @Override
