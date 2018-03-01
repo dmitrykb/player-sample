@@ -534,8 +534,12 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             GLES20.glUniformMatrix4fv(mvpBlitLoc, 1, false, mat, 0);
         }
         else {
-            if(eye.getType() == Eye.Type.MONOCULAR)
-                Matrix.perspectiveM(mat, 0, MONOSCOPIC_FOVY, viewWidth/(float)viewHeight, .1f, 100f);
+            if(eye.getType() == Eye.Type.MONOCULAR) {
+                Matrix.perspectiveM(mat, 0, MONOSCOPIC_FOVY, viewWidth / (float) viewHeight, .1f, 100f);
+                eye.getEyeView()[12] = 0;
+                eye.getEyeView()[13] = 0;
+                eye.getEyeView()[14] = 0;
+            }
             else
                 eye.getFov().toPerspectiveMatrix(.1f, 100f, mat, 0);
 
