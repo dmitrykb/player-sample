@@ -67,6 +67,8 @@ public class ViewActivity extends GvrActivity implements View.OnTouchListener {
         gvrView.enableCardboardTriggerEmulation();
         //gvrView.setStereoModeEnabled(false);
 
+        gvrView.setNeckModelEnabled(false);
+
         renderer.setResolution(3840, 2160);
         //renderer.setColorspace(DriftRenderer.COLORSPACE_NV12);
         //renderer.setNoWrap(true);
