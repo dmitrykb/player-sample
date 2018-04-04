@@ -39,10 +39,16 @@ public interface DriftRenderer {
 	void setSignalType(int stereotype);
 
 	/**
-	 * Set projection angle (sphere or partial sphere)
-	 	@params: for now only 360 or 180
+	 * Set horizontal projection angle (sphere or partial sphere)
+	 	@params: [0, 360]
 	 */
 	void setProjectionAngle(int projectionAngle);
+
+	/**
+	 * Set vertical projection angle
+	 	@params: [0, 180]
+	 */
+	void setProjectionYAngle(int projectionYAngle);
 
 	/**
 	 * VR view or non-VR view

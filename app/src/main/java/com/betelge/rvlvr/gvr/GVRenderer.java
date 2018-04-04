@@ -84,6 +84,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int stereotype;
     private float aspectCorrection;
     private int projectionAngle;
+    private int projectionYAngle;
 
     private int widthNextFrame;
     private int heightNextFrame;
@@ -91,6 +92,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private int stereotypeNextFrame;
     private float aspectCorrectionNextFrame;
     private int projectionAngleNextFrame;
+    private int projectionYAngleNextFrame;
 
     // Display settings
     private int projectionTypeNextFrame;
@@ -129,6 +131,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         setSignalType(DriftRenderer.SIGNAL_TYPE_MONO);
         setSignalAspectRatio(16, 9);
         setProjectionAngle(360);
+        setProjectionYAngle(180);
         setProjectionType(DriftRenderer.PROJECTION_TYPE_VR);
         setNoWrap(false);
     }
@@ -432,6 +435,7 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         aspectCorrection = aspectCorrectionNextFrame;
         stereotype = stereotypeNextFrame;
         projectionAngle = projectionAngleNextFrame;
+        projectionYAngle = projectionYAngleNextFrame;
         projectionType = projectionTypeNextFrame;
 
         if(projectionType == PROJECTION_TYPE_VR)
@@ -572,11 +576,8 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
             }
 
             float angle = 360f / projectionAngle;
-            /*if(stereotype == SIGNAL_TYPE_STEREO_OVER_UNDER)
-                GLES20.glUniform2f(angleLoc, angle/aspectCorrection, 1f);
-            else
-                GLES20.glUniform2f(angleLoc, angle, aspectCorrection);*/
-            GLES20.glUniform2f(angleLoc, angle, 1f);
+            float yangle = 180f / projectionYAngle;
+            GLES20.glUniform2f(angleLoc, angle, yangle);
         }
 
 
@@ -764,6 +765,11 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void setProjectionAngle(int projectionAngle) {
         this.projectionAngleNextFrame = projectionAngle;
+    }
+
+    @Override
+    public void setProjectionYAngle(int projectionYAngle) {
+        this.projectionYAngleNextFrame = projectionYAngle;
     }
 
     @Override
