@@ -1,8 +1,12 @@
 package com.betelge.rvlvr.gvr;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
+import android.os.Environment;
+import android.util.Log;
+import android.widget.Toast;
 
 import com.betelge.rvlvr.R;
 import com.google.vr.sdk.base.Eye;
@@ -11,6 +15,8 @@ import com.google.vr.sdk.base.HeadTransform;
 import com.google.vr.sdk.base.Viewport;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -30,43 +36,166 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     private Context context;
 
     private int skyBoxProgram;
-    private int vertexLoc;
-    private int mvpLoc;
-    private int textureUniformLoc;
+    private int blitProgram;
+    private int vertexLoc = 0;
+    private int uvCoordLoc = 1;
+    private int primitiveType;
+    private int mvpLoc, mvpBlitLoc;
+    private int textureUniformLoc, textureUniformBlitLoc;
+    private int mapLoc;
+    private int angleLoc;
+    private int cropNV12Loc;
+
     private FloatBuffer vertexBuffer;
+    private FloatBuffer uvCoordsBuffer;
     private ShortBuffer indexBuffer;
     private float[] mat;
     private int textureName;
 
     ByteBuffer rawBuffer;
+    ByteBuffer debugBuffer;
     boolean hasNewFrame = false;
+    boolean dumpFrame = false;
 
     float[] headView;
-    float rot = 0;
+    float[] forwardVector = {0,0,0};
+    float rotx, roty = 0;
 
-    // GLSL based YUY2 -> RGB converter
+    private int videoFrameCount = 0;
+    private long lastFrameTime = 0;
+
+    // GLSL based YUV -> RGB converter
     private int fbo;
     private int oldFbo;
-    private int converterProgram;
-    private int quadLoc;
-    private int yuvTextureUniformLoc;
+    private int yuy2ConverterProgram;
+    private int nv12ConverterProgram;
+    private int yuvTextureUniformYUY2Loc;
+    private int yuvTextureUniformNV12Loc;
+    private int uvTextureUniformNV12Loc;
     private int yuvTextureName;
+    private int uvTextureName;
+    private boolean texturesAreDirty; // Textures need resizing
     private FloatBuffer quadBuffer;
 
+    // Input signal
     private int width;
     private int height;
+    private int colorspace;
+    private int stereotype;
+    private float aspectCorrection;
+    private int projectionAngle;
+    private int projectionYAngle;
 
+    private int widthNextFrame;
+    private int heightNextFrame;
+    private int colorspaceNextFrame;
+    private int stereotypeNextFrame;
+    private float aspectCorrectionNextFrame;
+    private int projectionAngleNextFrame;
+    private int projectionYAngleNextFrame;
 
-    public GVRenderer(Context context, int width, int height) {
+    // Display settings
+    private int projectionTypeNextFrame;
+    private int projectionType;
+    private boolean noWrapNextFrame;
+    private boolean noWrap; // Cropping and projection are skipped when noWrap is enabled
+    private int viewWidth;
+    private int viewHeight;
+
+    private float MONOSCOPIC_FOVY = 62.5f;
+
+    private int rgbWidth;
+    private int rgbHeight;
+    final int MAX_WIDTH = 4096;
+    final int MAX_HEIGHT = 4096;
+
+    private float noWrapZoom = 1;
+    private float noWrapX = 0;
+    private float noWrapY = 0;
+
+    public GVRenderer(Context context) {
         this.context = context;
 
         mat = new float[16];
-        rawBuffer = ByteBuffer.allocateDirect(4 * width * height);
+        rawBuffer = ByteBuffer.allocateDirect(4 * MAX_WIDTH * MAX_HEIGHT);
         rawBuffer.order(ByteOrder.nativeOrder());
         rawBuffer.flip();
 
-        this.width = width;
-        this.height = height;
+        // Used for dumping frames to file
+        debugBuffer = ByteBuffer.allocateDirect(4*MAX_WIDTH * MAX_HEIGHT);
+        debugBuffer.order(ByteOrder.nativeOrder());
+
+        // The default values
+        setResolution(1920, 1080);
+        setColorspace(DriftRenderer.COLORSPACE_NV12);
+        setSignalType(DriftRenderer.SIGNAL_TYPE_MONO);
+        setSignalAspectRatio(16, 9);
+        setProjectionAngle(360);
+        setProjectionYAngle(180);
+        setProjectionType(DriftRenderer.PROJECTION_TYPE_VR);
+        setNoWrap(false);
+    }
+
+    private void setupTexturesAndFbos() {
+
+        if(noWrap /*set this to false to dump post-crop frame*/) {
+            rgbWidth = width;
+            rgbHeight = height;
+        }
+        else if(aspectCorrection > 1.) {
+            rgbWidth = (int) (width / aspectCorrection);
+            rgbHeight = height;
+        }
+        else {
+            rgbWidth = width;
+            rgbHeight = (int) (height * aspectCorrection);
+        }
+
+        // RGB texture
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, rgbWidth, rgbHeight, 0,
+                GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+
+        // YUV texture
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
+        if(colorspace == COLORSPACE_YUY2)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0,
+                    GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
+        else if(colorspace == COLORSPACE_NV12)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height, 0,
+                    GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, null);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+
+        if(colorspace == COLORSPACE_NV12) {
+            // UV texture
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, uvTextureName);
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA, width / 2, height / 2, 0,
+                    GLES20.GL_LUMINANCE_ALPHA, GLES20.GL_UNSIGNED_BYTE, null);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        }
+
+
+        // Recreate FBO
+        int[] fbos = {fbo};
+        GLES20.glDeleteFramebuffers(1, fbos, 0);
+        GLES20.glGenFramebuffers(1, fbos, 0);
+        fbo = fbos[0];
+        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, fbos, 0);
+        oldFbo = fbos[0];
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
+        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
+                GLES20.GL_TEXTURE_2D, textureName, 0);
+        int fbStatus = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
+        //assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE); Android ignores asserts
+
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
+        hasNewFrame = true; // Force new convert to avoid flicker
     }
 
     public void drawFrame(ByteBuffer frame) {
@@ -85,25 +214,25 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         int[] texLoc = {0};
         GLES20.glGenTextures(1, texLoc, 0);
         textureName = texLoc[0];
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width, height, 0, GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE, null);
 
         createYUVConverter();
+
+        setupTexturesAndFbos();
     }
 
     private void createSkybox() {
         // Sky box shader
         skyBoxProgram = GLES20.glCreateProgram();
+        blitProgram = GLES20.glCreateProgram();
 
         int vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
         int fragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
+        int blitFragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
 
         try {
             GLES20.glShaderSource(vertexShader, loadString(R.raw.skybox_v));
             GLES20.glShaderSource(fragmentShader, loadString(R.raw.skybox_f));
+            GLES20.glShaderSource(blitFragmentShader, loadString(R.raw.blit_f));
         }
         catch(IOException e) {
             // Can't load shader
@@ -112,33 +241,52 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
 
         GLES20.glCompileShader(vertexShader);
         GLES20.glCompileShader(fragmentShader);
+        GLES20.glCompileShader(blitFragmentShader);
 
         GLES20.glAttachShader(skyBoxProgram, vertexShader);
         GLES20.glAttachShader(skyBoxProgram, fragmentShader);
+        GLES20.glAttachShader(blitProgram, vertexShader);
+        GLES20.glAttachShader(blitProgram, blitFragmentShader);
+
+        GLES20.glBindAttribLocation(skyBoxProgram, vertexLoc, "a_vertex");
+        GLES20.glBindAttribLocation(skyBoxProgram, uvCoordLoc, "a_uvCoord");
+        GLES20.glBindAttribLocation(blitProgram, vertexLoc, "a_vertex");
 
         GLES20.glLinkProgram(skyBoxProgram);
+        GLES20.glLinkProgram(blitProgram);
 
-        vertexLoc = GLES20.glGetAttribLocation(skyBoxProgram, "a_vertex");
         mvpLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_mvp");
+        mvpBlitLoc = GLES20.glGetUniformLocation(blitProgram, "u_mvp");
         textureUniformLoc = GLES20.glGetUniformLocation(skyBoxProgram, "frame");
-        GLES20.glUniform1i(textureUniformLoc, 0);
+        textureUniformBlitLoc = GLES20.glGetUniformLocation(blitProgram, "frame");
+        mapLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_map");
+        angleLoc = GLES20.glGetUniformLocation(skyBoxProgram, "u_angles");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
         String fragmentLog = GLES20.glGetShaderInfoLog(fragmentShader);
+        String fragmentLog1 = GLES20.glGetShaderInfoLog(blitFragmentShader);
         //String linkLog = GLES20.glGetProgramInfoLog(skyBoxProgram);
 
         System.out.print(vertexLog);
         System.out.print(fragmentLog);
+        System.out.print(fragmentLog1);
         //System.out.print(linkLog);
 
 
-        // Sky box mesh
-        float[] vertices = {-1,-1,-1, -1,-1,1, -1,1,-1, -1,1,1, 1,-1,-1, 1,-1,1, 1,1,-1, 1,1,1};
-        short[] elements = {0, 1, 2, 3, 6, 7, 4, 5, 0, 1, 1, 0, 0, 2, 4, 6, 6, 1, 1, 3, 5, 7};
+        // Sky sphere mesh
+        Sphere sphere = new Sphere();
+        float[] vertices = sphere.vertices;
+        float[] uvCoords = sphere.uvCoords;
+        short[] elements = sphere.elements;
+        primitiveType = sphere.primitive_type;
 
         ByteBuffer bbFloats = ByteBuffer.allocateDirect(4 * vertices.length);
         bbFloats.order(ByteOrder.nativeOrder());
         vertexBuffer = bbFloats.asFloatBuffer();
+
+        ByteBuffer bbUVFloats = ByteBuffer.allocateDirect(4 * uvCoords.length);
+        bbUVFloats.order(ByteOrder.nativeOrder());
+        uvCoordsBuffer = bbUVFloats.asFloatBuffer();
 
         ByteBuffer bbShorts = ByteBuffer.allocateDirect(2 * elements.length);
         bbShorts.order(ByteOrder.nativeOrder());
@@ -148,35 +296,35 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         indexBuffer.flip();
         vertexBuffer.put(vertices);
         vertexBuffer.flip();
+        uvCoordsBuffer.put(uvCoords);
+        uvCoordsBuffer.flip();
 
         GLES20.glEnableVertexAttribArray(vertexLoc);
         GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
+        GLES20.glEnableVertexAttribArray(uvCoordLoc);
+        GLES20.glVertexAttribPointer(uvCoordLoc, 2, GLES20.GL_FLOAT, false, 0, uvCoordsBuffer);
     }
 
     private void createYUVConverter() {
 
-        // Initialize GLSL based YUV converter
-        int[] fbos = {0};
-        GLES20.glGenFramebuffers(1, fbos, 0);
-        fbo = fbos[0];
-        GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, fbos, 0);
-        oldFbo = fbos[0];
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-        GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
-                GLES20.GL_TEXTURE_2D, textureName, 0);
-        int fbStatus = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER);
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
-        assert(fbStatus == GLES20.GL_FRAMEBUFFER_COMPLETE);
+        // YUV texture
+        int[] texLoc = {0, 0};
+        GLES20.glGenTextures(2, texLoc, 0);
+        yuvTextureName = texLoc[0];
+        uvTextureName = texLoc[1];
 
-        // Shader for YUV converter
-        converterProgram = GLES20.glCreateProgram();
+        // Shaders for YUV converter
+        yuy2ConverterProgram = GLES20.glCreateProgram();
+        nv12ConverterProgram = GLES20.glCreateProgram();
 
         int vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
-        int fragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
+        int yuy2FragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
+        int nv12FragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
 
         try {
             GLES20.glShaderSource(vertexShader, loadString(R.raw.converter_v));
-            GLES20.glShaderSource(fragmentShader, loadString(R.raw.converter_f));
+            GLES20.glShaderSource(yuy2FragmentShader, loadString(R.raw.converter_yuy2_f));
+            GLES20.glShaderSource(nv12FragmentShader, loadString(R.raw.converter_nv12_f));
         }
         catch(IOException e) {
             // Can't load shader
@@ -184,36 +332,37 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         }
 
         GLES20.glCompileShader(vertexShader);
-        GLES20.glCompileShader(fragmentShader);
+        GLES20.glCompileShader(yuy2FragmentShader);
+        GLES20.glCompileShader(nv12FragmentShader);
 
-        GLES20.glAttachShader(converterProgram, vertexShader);
-        GLES20.glAttachShader(converterProgram, fragmentShader);
+        GLES20.glAttachShader(yuy2ConverterProgram, vertexShader);
+        GLES20.glAttachShader(yuy2ConverterProgram, yuy2FragmentShader);
+        GLES20.glAttachShader(nv12ConverterProgram, vertexShader);
+        GLES20.glAttachShader(nv12ConverterProgram, nv12FragmentShader);
 
-        GLES20.glLinkProgram(converterProgram);
+        GLES20.glBindAttribLocation(yuy2ConverterProgram, vertexLoc, "a_vertex");
+        GLES20.glBindAttribLocation(nv12ConverterProgram, vertexLoc, "a_vertex");
 
-        quadLoc = GLES20.glGetAttribLocation(converterProgram, "a_vertex");
-        yuvTextureUniformLoc = GLES20.glGetUniformLocation(converterProgram, "tex");
-        GLES20.glUniform1i(yuvTextureUniformLoc, 0);
+        GLES20.glLinkProgram(yuy2ConverterProgram);
+        GLES20.glLinkProgram(nv12ConverterProgram);
+
+        yuvTextureUniformYUY2Loc = GLES20.glGetUniformLocation(yuy2ConverterProgram, "tex");
+        yuvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "tex");
+        uvTextureUniformNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "uvTex");
+
+        cropNV12Loc = GLES20.glGetUniformLocation(nv12ConverterProgram, "u_crop");
 
         String vertexLog = GLES20.glGetShaderInfoLog(vertexShader);
-        String fragmentLog = GLES20.glGetShaderInfoLog(fragmentShader);
+        String fragmentLog = GLES20.glGetShaderInfoLog(yuy2FragmentShader);
+        String fragmentLog1 = GLES20.glGetShaderInfoLog(nv12FragmentShader);
         //String linkLog = GLES20.glGetProgramInfoLog(skyBoxProgram);
 
         System.out.print(vertexLog);
         System.out.print(fragmentLog);
+        System.out.print(fragmentLog1);
         //System.out.print(linkLog);
 
-        // YUV texture
-        int[] texLoc = {0};
-        GLES20.glGenTextures(1, texLoc, 0);
-        yuvTextureName = texLoc[0];
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST);
-        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE, null);
-
-        // Full screen quad
+        // Quad geometry
         float[] vertices = {-1, -1, .5f,  1, -1, .5f,  -1, 1, .5f, 1, 1, .5f};
 
         ByteBuffer bbFloats = ByteBuffer.allocateDirect(4 * vertices.length);
@@ -222,13 +371,14 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         quadBuffer.put(vertices);
         quadBuffer.flip();
 
-        GLES20.glEnableVertexAttribArray(quadLoc);
-        GLES20.glVertexAttribPointer(quadLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
+        GLES20.glEnableVertexAttribArray(vertexLoc);
+        GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
     }
 
     @Override
-    public void onSurfaceChanged(int i, int i1) {
-
+    public void onSurfaceChanged(int w, int h) {
+        viewWidth = w;
+        viewHeight = h;
     }
 
     private void convertYUV() {
@@ -237,15 +387,40 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         oldFbo = fbos[0];
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-        GLES20.glUseProgram(converterProgram);
 
-        GLES20.glEnableVertexAttribArray(quadLoc);
-        GLES20.glVertexAttribPointer(quadLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
+        if(colorspace == COLORSPACE_NV12) {
+            GLES20.glUseProgram(nv12ConverterProgram);
+            GLES20.glUniform1i(yuvTextureUniformNV12Loc, 0);
+            GLES20.glUniform1i(uvTextureUniformNV12Loc, 1);
+        }
+        else if(colorspace == COLORSPACE_YUY2) {
+            GLES20.glUseProgram(yuy2ConverterProgram);
+            GLES20.glUniform1i(yuvTextureUniformYUY2Loc, 0);
+        }
+        //else
+            // Invalid colorspace
 
-        GLES20.glViewport(0, 0, width, height);
+        GLES20.glUniform2f(cropNV12Loc, rgbWidth / (float) width, rgbHeight / (float) height);
+
+
+        GLES20.glEnableVertexAttribArray(vertexLoc);
+        GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
+
+        GLES20.glViewport(0, 0, rgbWidth, rgbHeight);
 
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+        // Dumps the currently bound FBO to file
+        if(dumpFrame) {
+            dumpFrame = false;
+
+            try {
+                dumpFrameToFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, oldFbo);
     }
@@ -253,66 +428,183 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
     @Override
     public void onNewFrame(HeadTransform headTransform) {
 
+        noWrap = noWrapNextFrame;
+        width = widthNextFrame;
+        height = heightNextFrame;
+        colorspace = colorspaceNextFrame;
+        aspectCorrection = aspectCorrectionNextFrame;
+        stereotype = stereotypeNextFrame;
+        projectionAngle = projectionAngleNextFrame;
+        projectionYAngle = projectionYAngleNextFrame;
+        projectionType = projectionTypeNextFrame;
+
+        if(projectionType == PROJECTION_TYPE_VR)
+            roty = 0;
+
+        headTransform.getForwardVector(forwardVector, 0);
+
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+
+        if(texturesAreDirty) {
+            setupTexturesAndFbos();
+            texturesAreDirty = false;
+        }
 
         // Upload texture to OpenGL when needed
         synchronized (rawBuffer) {
             if(hasNewFrame) {
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
+                rawBuffer.rewind();
+
+                if(colorspace == COLORSPACE_YUY2)
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, width / 2, height, 0, GLES20.GL_RGBA,
                         GLES20.GL_UNSIGNED_BYTE, rawBuffer);
+                else if(colorspace == COLORSPACE_NV12) {
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, width, height, 0, GLES20.GL_LUMINANCE,
+                            GLES20.GL_UNSIGNED_BYTE, rawBuffer);
+
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, uvTextureName);
+
+                    rawBuffer.position(width*height);
+                    ByteBuffer uvBuffer = rawBuffer.slice();
+                    GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE_ALPHA, width / 2, height / 2, 0, GLES20.GL_LUMINANCE_ALPHA,
+                            GLES20.GL_UNSIGNED_BYTE, uvBuffer);
+
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+                }
 
                 convertYUV();
 
                 hasNewFrame = false;
+
+                // Frame counter
+                videoFrameCount++;
+                long newTime = System.currentTimeMillis();
+                if(lastFrameTime == 0) {
+                    lastFrameTime = newTime;
+                }
+
+                if (newTime - lastFrameTime >= 1000) {
+                    Log.d("rvlvr", "Video frame rate: " + videoFrameCount);
+                    videoFrameCount = 0;
+                    lastFrameTime = newTime;
+                }
+
             }
         }
 
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
+        if(false/*showYUV*/)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, yuvTextureName);
+        else
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureName);
+
+        GLES20.glViewport(0, 0, viewWidth, viewHeight);
     }
 
     @Override
     public void onDrawEye(Eye eye) {
 
-        GLES20.glClearColor(.0f, .0f, 2f, 1f);
+        GLES20.glClearColor(.0f, .0f, 0f, 1f);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
-        GLES20.glUseProgram(skyBoxProgram);
+        if(noWrap) {
+            GLES20.glUseProgram(blitProgram);
+            GLES20.glUniform1i(textureUniformBlitLoc, 0);
+        }
+        else {
+            GLES20.glUseProgram(skyBoxProgram);
+            GLES20.glUniform1i(textureUniformLoc, 0);
+        }
 
         GLES20.glEnableVertexAttribArray(vertexLoc);
-        GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
+
+        if(noWrap) {
+            GLES20.glDisableVertexAttribArray(uvCoordLoc);
+            GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
+        }
+        else {
+            GLES20.glEnableVertexAttribArray(uvCoordLoc);
+            GLES20.glVertexAttribPointer(vertexLoc, 3, GLES20.GL_FLOAT, false, 0, vertexBuffer);
+            GLES20.glVertexAttribPointer(uvCoordLoc, 2, GLES20.GL_FLOAT, false, 0, uvCoordsBuffer);
+        }
 
 
-        eye.getFov().toPerspectiveMatrix(.1f, 1000f, mat, 0);
-        Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
-        //Matrix.rotateM(mat, 0, rot, 1, 0, 0);
-        //rot += 1;
-        //rot = rot % 360;
+        if(noWrap && projectionType == DriftRenderer.PROJECTION_TYPE_NOVR) {
+            Matrix.setIdentityM(mat, 0);
+            float yScale = height / (float)viewHeight * viewWidth / (float)width;
+            Matrix.scaleM(mat, 0, noWrapZoom, noWrapZoom * yScale, 1);
+            Matrix.translateM(mat, 0, noWrapX, noWrapY, 0);
+            GLES20.glUniformMatrix4fv(mvpBlitLoc, 1, false, mat, 0);
+        }
+        else {
+            if(eye.getType() == Eye.Type.MONOCULAR) {
+                Matrix.perspectiveM(mat, 0, MONOSCOPIC_FOVY, viewWidth / (float) viewHeight, .1f, 100f);
+                eye.getEyeView()[12] = 0;
+                eye.getEyeView()[13] = 0;
+                eye.getEyeView()[14] = 0;
+            }
+            else
+                eye.getFov().toPerspectiveMatrix(.1f, 100f, mat, 0);
 
-        GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
+            Matrix.rotateM(mat, 0, roty, 1, 0, 0);
+            Matrix.multiplyMM(mat, 0, mat, 0, eye.getEyeView(), 0);
+            Matrix.rotateM(mat, 0, rotx, 0, 1, 0);
 
-        GLES20.glDrawElements(GLES20.GL_TRIANGLE_STRIP, indexBuffer.limit(),
-                GLES20.GL_UNSIGNED_SHORT, indexBuffer);
+            if(noWrap) {
+                Matrix.translateM(mat, 0, 0, 0, -2);
+                Matrix.scaleM(mat, 0, 1, height/(float)width, 1);
+            }
+            GLES20.glUniformMatrix4fv(mvpLoc, 1, false, mat, 0);
+        }
+
+        // Map a region of the texture onto this eye
+        float rightEye = eye.getType() == Eye.Type.LEFT || eye.getType() == Eye.Type.MONOCULAR ?
+                0 : 1;
+        if(!noWrap) {
+            switch (stereotype) {
+                default:
+                case SIGNAL_TYPE_MONO:
+                    GLES20.glUniform4f(mapLoc, 0, 0, 1, 1);
+                    break;
+                case SIGNAL_TYPE_STEREO_SIDE_BY_SIDE:
+                    GLES20.glUniform4f(mapLoc, .5f * rightEye, 0, .5f, 1);
+                    break;
+                case SIGNAL_TYPE_STEREO_OVER_UNDER:
+                    GLES20.glUniform4f(mapLoc, 0f, .5f * rightEye, 1f, .5f);
+                    break;
+            }
+
+            float angle = 360f / projectionAngle;
+            float yangle = 180f / projectionYAngle;
+            GLES20.glUniform2f(angleLoc, angle, yangle);
+        }
+
+
+
+        if(noWrap)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+        else
+            GLES20.glDrawElements(primitiveType, indexBuffer.limit(),
+                    GLES20.GL_UNSIGNED_SHORT, indexBuffer);
     }
 
     @Override
     public void onFinishFrame(Viewport viewport) {
-        // Debug
-        if(false) {
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
-            GLES20.glUseProgram(converterProgram);
-
-            GLES20.glEnableVertexAttribArray(quadLoc);
-            GLES20.glVertexAttribPointer(quadLoc, 3, GLES20.GL_FLOAT, false, 0, quadBuffer);
-
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-        }
     }
 
     @Override
     public void onRendererShutdown() {
-
+        int textures[] = {textureName, yuvTextureName, uvTextureName};
+        int fbos[] = {fbo};
+        int programs[] = {blitProgram, skyBoxProgram, nv12ConverterProgram, yuy2ConverterProgram};
+        GLES20.glDeleteTextures(textures.length, textures, 0);
+        GLES20.glDeleteFramebuffers(fbos.length, fbos, 0);
+        for(int prog : programs)
+            GLES20.glDeleteProgram(prog);
+        rawBuffer = null; // Something keeps a reference to this renderer past onStop() so we have
+        debugBuffer = null; // to stop referencing these native buffers so GC can free them
     }
 
     private String loadString(int resId) throws IOException {
@@ -334,34 +626,161 @@ public class GVRenderer implements GvrView.StereoRenderer, DriftRenderer {
         return builder.toString();
     }
 
+    public void drag(float dx, float dy) {
+        if(noWrap && projectionType == PROJECTION_TYPE_NOVR && noWrapZoom != 1f) {
+            noWrapX += .0015 * dx / noWrapZoom;
+            noWrapY -= .0015 * dy / noWrapZoom;
+
+            float L = viewWidth / (float) width;
+            if(noWrapX < -L)
+                noWrapX = -L;
+            else if(noWrapX > L)
+                noWrapX = L;
+            if(noWrapY < -L)
+                noWrapY = -L;
+            else if(noWrapY > L)
+                noWrapY = L;
+        }
+        else if (!noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+            float speed = -.1f * MONOSCOPIC_FOVY / 60f;
+
+            rotx += speed * dx;
+            roty += speed * dy;
+
+            rotx %= 360;
+            roty = Math.max(roty, -90);
+            roty = Math.min(roty, 90);
+        }
+    }
+
+    public void doubleTap() {
+        if(noWrap && projectionType == PROJECTION_TYPE_NOVR) {
+            if(noWrapZoom != 1f) {
+                noWrapZoom = 1f;
+                noWrapX = 0;
+                noWrapY = 0;
+            }
+            else {
+                noWrapZoom = height / (float) viewHeight;
+            }
+        }
+    }
+
+    public void longPress() {
+
+        if(noWrap) {
+            Toast.makeText(context, "Dumping frame...", Toast.LENGTH_SHORT).show();
+            dumpFrame = true;
+        }
+        else {
+            rotx = (float) (180 / Math.PI * Math.atan2(forwardVector[0], forwardVector[2])) - 180;
+            roty = 0;
+            Toast.makeText(context, "Drift realigned", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void dumpFrameToFile() throws IOException {
+        Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, debugBuffer);
+        int r = debugBuffer.remaining();
+        bmp.copyPixelsFromBuffer(debugBuffer);
+        debugBuffer.clear();
+        debugBuffer.rewind();
+
+        /*Bitmap yuvBmp = Bitmap.createBitmap(width, height/2*3, Bitmap.Config.ARGB_8888);
+
+        rawBuffer.rewind();
+        for(int i = 0; i < width * height/2*3; i++) {
+            byte b = rawBuffer.get();
+            debugBuffer.put((byte)255);
+            debugBuffer.put(b);
+            debugBuffer.put(b);
+            debugBuffer.put(b);
+        }
+        rawBuffer.rewind();
+        debugBuffer.rewind();
+        yuvBmp.copyPixelsFromBuffer(debugBuffer);*/
+
+        int i = 0;
+        File file, yuvFile;
+        String filename, yuvFilename;
+        do {
+            filename = "frame" + i + ".png";
+            yuvFilename = "frame_yuv" + i + ".png";
+            file = new File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), filename);
+            yuvFile = new File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES), yuvFilename);
+
+            i++;
+        } while(file.exists() || yuvFile.exists());
+        file.createNewFile();
+        //yuvFile.createNewFile();
+        FileOutputStream out = new FileOutputStream(file);
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+        out.close();
+
+        /*out = new FileOutputStream(yuvFile);
+        yuvBmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+        out.close();*/
+
+        debugBuffer.clear();
+        bmp.recycle();
+        //yuvBmp.recycle();
+    }
+
     @Override
     public void setResolution(int w, int h) {
-        this.width = w;
-        this.height = h;
+        if(width == w && height == h)
+            return;
+
+        aspectCorrectionNextFrame *= h / (float) heightNextFrame * widthNextFrame / (float)  w;
+
+        widthNextFrame = w;
+        heightNextFrame = h;
+
+        texturesAreDirty = true;
+    }
+
+    @Override
+    public void setColorspace(int format) {
+        if(colorspace == format)
+            return;
+
+        colorspaceNextFrame = format;
+
+        texturesAreDirty = true;
     }
 
     @Override
     public void setSignalAspectRatio(int w, int h) {
+        aspectCorrectionNextFrame = h / (float) heightNextFrame * widthNextFrame / (float) w;
 
+        texturesAreDirty = true;
     }
 
     @Override
     public void setSignalType(int stereotype) {
-
+        this.stereotypeNextFrame = stereotype;
     }
 
     @Override
     public void setProjectionAngle(int projectionAngle) {
+        this.projectionAngleNextFrame = projectionAngle;
+    }
 
+    @Override
+    public void setProjectionYAngle(int projectionYAngle) {
+        this.projectionYAngleNextFrame = projectionYAngle;
     }
 
     @Override
     public void setProjectionType(int projectionType) {
-
+        this.projectionTypeNextFrame = projectionType;
     }
 
     @Override
-    public void setNoWrap(boolean b) {
+    public void setNoWrap(boolean noWrap) {
+        this.noWrapNextFrame = noWrap;
 
+        texturesAreDirty = true;
     }
 }

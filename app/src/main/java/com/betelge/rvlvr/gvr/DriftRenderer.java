@@ -9,6 +9,9 @@ public interface DriftRenderer {
 	int PROJECTION_TYPE_VR = 0;
 	int PROJECTION_TYPE_NOVR = 1;
 
+	int COLORSPACE_NV12 = 0;
+	int COLORSPACE_YUY2 = 1;
+
 
 	/**
 	 *
@@ -16,6 +19,12 @@ public interface DriftRenderer {
 	 * @param h - input signal vertical resolution
 	 */
 	void setResolution(int w, int h);
+
+	/**
+	 * Sets input format for YUV -> RGB converter
+	 * @param format
+	 */
+	void setColorspace(int format);
 
 	/**
 	 	Crop vertical axis of incoming signal prior to projection by aspect ratio
@@ -30,10 +39,16 @@ public interface DriftRenderer {
 	void setSignalType(int stereotype);
 
 	/**
-	 * Set projection angle (sphere or partial sphere)
-	 	@params: for now only 360 or 180
+	 * Set horizontal projection angle (sphere or partial sphere)
+	 	@params: [0, 360]
 	 */
 	void setProjectionAngle(int projectionAngle);
+
+	/**
+	 * Set vertical projection angle
+	 	@params: [0, 180]
+	 */
+	void setProjectionYAngle(int projectionYAngle);
 
 	/**
 	 * VR view or non-VR view
@@ -45,5 +60,5 @@ public interface DriftRenderer {
 	 * Full Screen mode (No Projection)
 	 	@true - we don’t want to wrap the signal into a sphere and just render it as is, @false - wrap a signal into a sphere
 	 */
-	void setNoWrap(boolean b);
+	void setNoWrap(boolean noWrap);
 }
