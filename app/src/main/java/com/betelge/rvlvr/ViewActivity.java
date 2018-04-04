@@ -74,6 +74,7 @@ public class ViewActivity extends GvrActivity implements View.OnTouchListener {
         //renderer.setNoWrap(true);
         renderer.setSignalType(DriftRenderer.SIGNAL_TYPE_MONO);
         renderer.setProjectionAngle(360);
+        renderer.setProjectionYAngle(180);
 
         if (gvrView.setAsyncReprojectionEnabled(true)) {
             AndroidCompat.setSustainedPerformanceMode(this, true);

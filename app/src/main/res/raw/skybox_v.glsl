@@ -18,7 +18,7 @@ void main(void) {
     uv += vec2(.5);
 
     preMapUV = uv;
-    hangle = u_angles.x;
+    hangle = u_angles.x * u_angles.y;
 
 	uv = u_map.zw * uv + u_map.xy;
 	uvCoord = uv;
